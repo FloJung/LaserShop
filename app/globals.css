@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --muted-surface: #eef1f5;
+  --text: #111827;
+  --text-soft: #5b6473;
+  --brand: #e7772c;
+  --brand-strong: #cb5f17;
+  --line: #d8dde6;
+  --success: #117a4b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at top left, #fff4ea 0%, transparent 45%),
+    radial-gradient(circle at 90% 10%, #e9f4ff 0%, transparent 40%), var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+.shell {
+  width: min(1280px, 92vw);
+  margin-inline: auto;
+}
+
+.section {
+  padding-block: clamp(2.25rem, 2vw + 1.5rem, 4rem);
+}
+
+.card-shadow {
+  box-shadow: 0 20px 40px -28px rgba(20, 26, 40, 0.35);
+}
+
+.soft-ring {
+  box-shadow: 0 0 0 2px rgba(231, 119, 44, 0.2);
+}
+
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine::before {
+  content: "";
+  position: absolute;
+  inset: -140% 35% 0 -35%;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.28) 45%, transparent 80%);
+  transform: translateX(-55%) rotate(14deg);
+  transition: transform 0.8s ease;
+}
+
+.shine:hover::before {
+  transform: translateX(70%) rotate(14deg);
+}
+
