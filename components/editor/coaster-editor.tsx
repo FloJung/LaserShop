@@ -250,11 +250,11 @@ export function CoasterEditor() {
       const sizeLabel =
         shapeDraft.shapeType === "circle"
           ? `Aktueller Durchmesser: ${Math.round(bounds.width)}px`
-          : `Aktuelle Groesse: ${Math.round(bounds.width)} x ${Math.round(bounds.height)}px`;
+          : `Aktuelle Größe: ${Math.round(bounds.width)} x ${Math.round(bounds.height)}px`;
 
       return {
         label: `${shapeLabel} wird aufgezogen`,
-        detail: `Bewege die Maus und setze mit dem zweiten Klick die gegenueberliegende Ecke. ${sizeLabel}`
+        detail: `Bewege die Maus und setze mit dem zweiten Klick die gegenüberliegende Ecke. ${sizeLabel}`
       };
     }
 
@@ -270,7 +270,7 @@ export function CoasterEditor() {
       label: "Auswahlmodus",
       detail: selectedElement
         ? `Aktives Element: ${ELEMENT_LABELS[selectedElement.type]}`
-        : "Elemente koennen ausgewaehlt, verschoben und bearbeitet werden."
+        : "Elemente koennen ausgewählt, verschoben und bearbeitet werden."
     };
   }, [
     activeShapeType,
@@ -824,9 +824,9 @@ export function CoasterEditor() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">
                   10 x 10 cm Editor
                 </p>
-                <h2 className="mt-2 text-2xl font-bold">Glasuntersaetzer Custom</h2>
+                <h2 className="mt-2 text-2xl font-bold">Glasuntersätzer Custom</h2>
                 <p className="mt-2 text-sm text-[var(--text-soft)]">
-                  Sicherheitsrand: 5 mm innen. Elemente bleiben innerhalb der gravierbaren Flaeche.
+                  Sicherheitsrand: 5 mm innen. Elemente bleiben innerhalb der gravierbaren Fläche.
                 </p>
               </div>
               <div className="rounded-2xl bg-[var(--muted-surface)] px-4 py-3 text-right">
@@ -853,7 +853,7 @@ export function CoasterEditor() {
                 <p className="mt-1 text-sm font-semibold">{design.elements.length} im Layout</p>
                 {selectedElement ? (
                   <p className="mt-1 h-[3.75rem] overflow-hidden text-xs leading-5 text-[var(--text-soft)]">
-                    Ausgewaehlt: {ELEMENT_LABELS[selectedElement.type]}
+                    Ausgewählt: {ELEMENT_LABELS[selectedElement.type]}
                   </p>
                 ) : lineDraft ? (
                   <p className="mt-1 h-[3.75rem] overflow-hidden text-xs leading-5 text-[var(--text-soft)]">
@@ -909,7 +909,7 @@ export function CoasterEditor() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">Live-Vorschau</p>
                 <p className="mt-2 text-sm text-[var(--text-soft)]">
-                  Diese Vorschau wird beim Speichern und im Warenkorb fuer dein individuelles Produkt verwendet.
+                  Diese Vorschau wird beim Speichern und im Warenkorb für dein individuelles Produkt verwendet.
                 </p>
               </div>
               <Button variant="secondary" onClick={handleExportPng}>
@@ -925,9 +925,9 @@ export function CoasterEditor() {
                 <p className="text-sm font-semibold">Produktion</p>
                 <ul className="mt-3 space-y-2 text-sm text-[var(--text-soft)]">
                   <li>- Gravur in schwarzer Vorschau, spaeter als Lasergravur umgesetzt</li>
-                  <li>- Feste Arbeitsflaeche mit 10 x 10 cm</li>
+                  <li>- Feste Arbeitsfläche mit 10 x 10 cm</li>
                   <li>- Design wird als JSON und PNG-Vorschau gespeichert</li>
-                  <li>- Direkte Uebergabe an den Warenkorb als Custom-Produkt</li>
+                  <li>- Direkte Übergabe an den Warenkorb als Custom-Produkt</li>
                 </ul>
               </div>
             </div>

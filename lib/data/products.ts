@@ -1,31 +1,57 @@
 import type { DesignerCollection, Product, ShopCategory } from "@/lib/types";
 
+const glassImagePool = [
+  "/images/glas/2er-set-weinglas-ringe-personalisiert-699d1e.jpg",
+  "/images/glas/IMG_8978-768x1024.jpeg",
+  "/images/glas/IMG_8981-768x1024.jpeg",
+  "/images/glas/Weissweinglaser-Kristallglas-2-Stuck.webp",
+  "/images/glas/weihnachts-weinglas-gravur-tannenbaum-trauzeugin-fragen.480.png",
+  "/images/glas/wein_diva_hochzeit-2_600x600.jpg",
+  "/images/glas/wein_daily_bordeaux_text_gerade_600x600.jpg",
+  "/images/glas/Sektglaeser-Brautpaar-250x250.jpg",
+  "/images/glas/60c3687e1b4c3966090c47f888755c47-1-full.jpg",
+  "/images/glas/61yKJOFsUXL._AC_UF894,1000_QL80_.jpg",
+  "/images/glas/51wyMQk7QEL._AC_UF894,1000_QL80_.jpg",
+  "/images/glas/200106220-xmas-400px.jpg"
+] as const;
+
+const coasterImagePool = [
+  "/images/untersetzer/Untersetzer-mit-Gravur-Kork-mit-Spruch-Mama-braucht-Kaffee.jpg",
+  "/images/untersetzer/Untersetzer-mit-Logo-Gravur-Danke-f-r-alles-Kork.jpg",
+  "/images/untersetzer/images.jpg"
+] as const;
+
+function getPoolImage(pool: readonly string[], index: number) {
+  return pool[index % pool.length];
+}
+
+function getPoolGallery(pool: readonly string[], startIndex: number) {
+  return [getPoolImage(pool, startIndex), getPoolImage(pool, startIndex + 1), getPoolImage(pool, startIndex + 2)];
+}
+
 export const collections: DesignerCollection[] = [
   {
     slug: "flo",
     name: "Flo's Designs",
     creator: "Flo",
-    description: "Markante Gravuren mit urbanem Charakter fuer moderne Geschenkideen.",
-    image:
-      "https://images.unsplash.com/photo-1531386151447-fd76ad50012f?auto=format&fit=crop&w=1200&q=80",
+    description: "Markante Gravuren mit urbanem Charakter für moderne Geschenkideen.",
+    image: getPoolImage(glassImagePool, 0),
     accent: "from-amber-400 to-orange-500"
   },
   {
     slug: "andrea",
     name: "Andrea's Designs",
     creator: "Andrea",
-    description: "Filigrane Linien und elegante Motive fuer stilvolle Momente.",
-    image:
-      "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=1200&q=80",
+    description: "Filigrane Linien und elegante Motive für stilvolle Momente.",
+    image: getPoolImage(glassImagePool, 5),
     accent: "from-cyan-400 to-blue-500"
   },
   {
     slug: "studio",
     name: "Studio Kollektion",
     creator: "Studio",
-    description: "Kuratiert fuer Premium-Anlaesse mit reduzierter, zeitloser Formensprache.",
-    image:
-      "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1200&q=80",
+    description: "Kuratiert für Premium-Anlässe mit reduzierter, zeitloser Formensprache.",
+    image: getPoolImage(glassImagePool, 3),
     accent: "from-emerald-400 to-teal-500"
   }
 ];
@@ -33,18 +59,18 @@ export const collections: DesignerCollection[] = [
 export const shopCategories: ShopCategory[] = [
   {
     slug: "alle-glaeser",
-    name: "Alle Glaeser",
-    description: "Das komplette Sortiment an gravierten Sekt-, Schnaps-, Bier- und Trinkglaesern."
+    name: "Alle Gläser",
+    description: "Das komplette Sortiment an gravierten Sekt-, Schnaps-, Bier- und Trinkgläsern."
   },
   {
     slug: "glasuntersetzer",
-    name: "Glasuntersaetzer",
-    description: "Passende Untersetzer als stilvolle Ergaenzung fuer Geschenksets und Tischbilder."
+    name: "Glasuntersätzer",
+    description: "Passende Untersetzer als stilvolle Ergänzung für Geschenksets und Tischbilder."
   },
   {
     slug: "bundle-angebote",
     name: "Bundle-Angebote",
-    description: "Kuratiert gebuendelte Sets mit Preisvorteil fuer Geschenke und besondere Anlaesse."
+    description: "Kuratiert gebuendelte Sets mit Preisvorteil für Geschenke und besondere Anlässe."
   }
 ];
 
@@ -53,24 +79,19 @@ export const products: Product[] = [
     id: "sg-001",
     name: "Sektglas Aurora Ring",
     price: 24.9,
-    image:
-      "https://images.unsplash.com/photo-1524594154908-edd6d5f6f410?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1524594154908-edd6d5f6f410?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Sektglaeser",
+    image: getPoolImage(glassImagePool, 0),
+    gallery: getPoolGallery(glassImagePool, 0),
+    glassType: "Sektgläser",
     shopCategory: "alle-glaeser",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
     occasion: "Hochzeit",
-    description: "Vorgraviertes Sektglas mit feinem Ringmotiv fuer besondere Toast-Momente.",
+    description: "Vorgraviertes Sektglas mit feinem Ringmotiv für besondere Toast-Momente.",
     badge: "Bestseller",
     featured: true,
     care: "Spuelmaschinengeeignet im Schonprogramm.",
-    benefits: ["Praezise Lasergravur", "Kristallklares Glas", "Geschenkfertig verpackbar"],
+    benefits: ["Präzise Lasergravur", "Kristallklares Glas", "Geschenkfertig verpackbar"],
     rating: 4.8,
     reviews: 126
   },
@@ -78,14 +99,9 @@ export const products: Product[] = [
     id: "sg-002",
     name: "Sektglas Pure Line",
     price: 22.9,
-    image:
-      "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1524594154908-edd6d5f6f410?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Sektglaeser",
+    image: getPoolImage(glassImagePool, 1),
+    gallery: getPoolGallery(glassImagePool, 1),
+    glassType: "Sektgläser",
     shopCategory: "alle-glaeser",
     collection: "Andrea's Designs",
     collectionSlug: "andrea",
@@ -93,8 +109,8 @@ export const products: Product[] = [
     occasion: "Elegant",
     description: "Minimalistische Gravur mit ruhiger Typografie und klarer Linienfuehrung.",
     featured: true,
-    care: "Handwaesche empfohlen, um den Glanz dauerhaft zu erhalten.",
-    benefits: ["Zeitloses Design", "Sanft abgerundeter Rand", "Ideal fuer Dinner"],
+    care: "Handwäsche empfohlen, um den Glanz dauerhaft zu erhalten.",
+    benefits: ["Zeitloses Design", "Sanft abgerundeter Rand", "Ideal für Dinner"],
     rating: 4.7,
     reviews: 89
   },
@@ -102,24 +118,19 @@ export const products: Product[] = [
     id: "sg-003",
     name: "Schnapsglas Cheers Shot",
     price: 14.9,
-    image:
-      "https://images.unsplash.com/photo-1568637445382-2714f7cbf2c0?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1568637445382-2714f7cbf2c0?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1481391243133-f96216dcb5d2?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Schnapsglaeser",
+    image: getPoolImage(glassImagePool, 2),
+    gallery: getPoolGallery(glassImagePool, 2),
+    glassType: "Schnapsgläser",
     shopCategory: "alle-glaeser",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
     occasion: "Lustig",
-    description: "Kompaktes Shotglas mit dynamischer Gravur fuer Partys und Geburtstage.",
+    description: "Kompaktes Shotglas mit dynamischer Gravur für Partys und Geburtstage.",
     badge: "Neu",
     featured: true,
     care: "Spuelmaschinengeeignet bis 55 Grad.",
-    benefits: ["Scharfer Gravurkontrast", "Standfeste Form", "Perfekt fuer Sets"],
+    benefits: ["Scharfer Gravurkontrast", "Standfeste Form", "Perfekt für Sets"],
     rating: 4.6,
     reviews: 64
   },
@@ -127,22 +138,17 @@ export const products: Product[] = [
     id: "sg-004",
     name: "Schnapsglas Heritage",
     price: 16.9,
-    image:
-      "https://images.unsplash.com/photo-1471421298428-1513ab720a8e?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1471421298428-1513ab720a8e?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1481391243133-f96216dcb5d2?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1568637445382-2714f7cbf2c0?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Schnapsglaeser",
+    image: getPoolImage(glassImagePool, 3),
+    gallery: getPoolGallery(glassImagePool, 3),
+    glassType: "Schnapsgläser",
     shopCategory: "alle-glaeser",
     collection: "Studio Kollektion",
     collectionSlug: "studio",
     designer: "Studio",
-    occasion: "Jubilaeum",
-    description: "Klassisches Motiv mit modernem Schliff fuer besondere Sammlerstücke.",
+    occasion: "Jubiläum",
+    description: "Klassisches Motiv mit modernem Schliff für besondere Sammlerstücke.",
     featured: false,
-    care: "Handwaesche fuer dauerhafte Brillanz empfohlen.",
+    care: "Handwäsche für dauerhafte Brillanz empfohlen.",
     benefits: ["Hochdichte Gravur", "Massive Bodenplatte", "Edle Geschenkoption"],
     rating: 4.9,
     reviews: 42
@@ -151,14 +157,9 @@ export const products: Product[] = [
     id: "sg-005",
     name: "Bierglas Hop Crest",
     price: 29.9,
-    image:
-      "https://images.unsplash.com/photo-1514361892635-eae31ec16bbf?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1514361892635-eae31ec16bbf?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Bierglaeser",
+    image: getPoolImage(glassImagePool, 4),
+    gallery: getPoolGallery(glassImagePool, 4),
+    glassType: "Biergläser",
     shopCategory: "alle-glaeser",
     collection: "Studio Kollektion",
     collectionSlug: "studio",
@@ -167,7 +168,7 @@ export const products: Product[] = [
     description: "Voluminoeses Bierglas mit kraftvollem Wappen-Design und klaren Konturen.",
     badge: "Top Geschenk",
     featured: true,
-    care: "Spuelmaschinengeeignet, nicht fuer aggressive Reiniger.",
+    care: "Spuelmaschinengeeignet, nicht für aggressive Reiniger.",
     benefits: ["Robustes Glas", "Schaumfreundliche Form", "Hochwertige Gravur"],
     rating: 4.8,
     reviews: 171
@@ -176,20 +177,15 @@ export const products: Product[] = [
     id: "sg-006",
     name: "Bierglas Craft Signature",
     price: 27.9,
-    image:
-      "https://images.unsplash.com/photo-1618886614638-80e3c103d31a?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1618886614638-80e3c103d31a?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1514361892635-eae31ec16bbf?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Bierglaeser",
+    image: getPoolImage(glassImagePool, 5),
+    gallery: getPoolGallery(glassImagePool, 5),
+    glassType: "Biergläser",
     shopCategory: "alle-glaeser",
     collection: "Andrea's Designs",
     collectionSlug: "andrea",
     designer: "Andrea",
     occasion: "Elegant",
-    description: "Matte Gravur mit eleganter Schrift fuer ein stilvolles Bar-Feeling zuhause.",
+    description: "Matte Gravur mit eleganter Schrift für ein stilvolles Bar-Feeling zuhause.",
     featured: false,
     care: "Schonprogramm bei maximal 50 Grad empfohlen.",
     benefits: ["Feine Liniengravur", "Balanciertes Gewicht", "Lange Haltbarkeit"],
@@ -200,20 +196,15 @@ export const products: Product[] = [
     id: "sg-007",
     name: "Trinkglas Daily Monogram",
     price: 19.9,
-    image:
-      "https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1524594154908-edd6d5f6f410?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Trinkglaeser",
+    image: getPoolImage(glassImagePool, 6),
+    gallery: getPoolGallery(glassImagePool, 6),
+    glassType: "Trinkgläser",
     shopCategory: "alle-glaeser",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
     occasion: "Geburtstag",
-    description: "Alltagsglas mit markanter Monogramm-Gravur fuer persoenlichen Charakter.",
+    description: "Alltagsglas mit markanter Monogramm-Gravur für persoenlichen Charakter.",
     featured: true,
     care: "Spuelmaschinengeeignet und temperaturbestaendig.",
     benefits: ["Alltagstauglich", "Klarer Auftritt", "Beliebtes Set-Produkt"],
@@ -224,22 +215,17 @@ export const products: Product[] = [
     id: "sg-008",
     name: "Trinkglas Fine Arc",
     price: 21.9,
-    image:
-      "https://images.unsplash.com/photo-1578425570266-d85ae6f0d7ed?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1578425570266-d85ae6f0d7ed?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Trinkglaeser",
+    image: getPoolImage(glassImagePool, 7),
+    gallery: getPoolGallery(glassImagePool, 7),
+    glassType: "Trinkgläser",
     shopCategory: "alle-glaeser",
     collection: "Andrea's Designs",
     collectionSlug: "andrea",
     designer: "Andrea",
     occasion: "Hochzeit",
-    description: "Leicht gebogene Gravur fuer modern-romantische Tischarrangements.",
+    description: "Leicht gebogene Gravur für modern-romantische Tischarrangements.",
     featured: false,
-    care: "Handwaesche oder Schonprogramm fuer lange Oberflaechenqualitaet.",
+    care: "Handwäsche oder Schonprogramm für lange Oberflächenqualitaet.",
     benefits: ["Filigrane Details", "Feine Haptik", "Geschenkbereit"],
     rating: 4.6,
     reviews: 77
@@ -248,20 +234,15 @@ export const products: Product[] = [
     id: "sg-009",
     name: "Sektglas Velvet Toast",
     price: 26.9,
-    image:
-      "https://images.unsplash.com/photo-1481391243133-f96216dcb5d2?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1481391243133-f96216dcb5d2?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1524594154908-edd6d5f6f410?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Sektglaeser",
+    image: getPoolImage(glassImagePool, 8),
+    gallery: getPoolGallery(glassImagePool, 8),
+    glassType: "Sektgläser",
     shopCategory: "alle-glaeser",
     collection: "Studio Kollektion",
     collectionSlug: "studio",
     designer: "Studio",
     occasion: "Elegant",
-    description: "Samtene Optik in der Gravurlinie fuer Events mit Premium-Anspruch.",
+    description: "Samtene Optik in der Gravurlinie für Events mit Premium-Anspruch.",
     featured: true,
     care: "Nur Schonprogramm, keine Stahlwolle verwenden.",
     benefits: ["Premium Finish", "Harmonische Silhouette", "Edle Geschenkidee"],
@@ -272,20 +253,15 @@ export const products: Product[] = [
     id: "sg-010",
     name: "Schnapsglas Urban Pulse",
     price: 15.9,
-    image:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1568637445382-2714f7cbf2c0?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1471421298428-1513ab720a8e?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Schnapsglaeser",
+    image: getPoolImage(glassImagePool, 9),
+    gallery: getPoolGallery(glassImagePool, 9),
+    glassType: "Schnapsgläser",
     shopCategory: "alle-glaeser",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
     occasion: "Geburtstag",
-    description: "Kräftige Gravurbalken fuer ein junges, modernes Party-Statement.",
+    description: "Kräftige Gravurbalken für ein junges, modernes Party-Statement.",
     featured: false,
     care: "Spuelmaschinengeeignet.",
     benefits: ["Starke Lesbarkeit", "Widerstandsfaehig", "Schnelle Geschenkloesung"],
@@ -296,20 +272,15 @@ export const products: Product[] = [
     id: "sg-011",
     name: "Bierglas Barrel Mark",
     price: 31.9,
-    image:
-      "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1514361892635-eae31ec16bbf?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1618886614638-80e3c103d31a?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Bierglaeser",
+    image: getPoolImage(glassImagePool, 10),
+    gallery: getPoolGallery(glassImagePool, 10),
+    glassType: "Biergläser",
     shopCategory: "alle-glaeser",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
-    occasion: "Jubilaeum",
-    description: "Maskuline Gravur fuer Bar-Liebhaber mit Hang zu klassischer Typografie.",
+    occasion: "Jubiläum",
+    description: "Maskuline Gravur für Bar-Liebhaber mit Hang zu klassischer Typografie.",
     featured: true,
     care: "Schonprogramm empfohlen.",
     benefits: ["Stabile Wandstaerke", "Intensiver Gravurkontrast", "Limitierte Auflage"],
@@ -320,20 +291,15 @@ export const products: Product[] = [
     id: "sg-012",
     name: "Trinkglas Studio Calm",
     price: 23.9,
-    image:
-      "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1578425570266-d85ae6f0d7ed?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Trinkglaeser",
+    image: getPoolImage(glassImagePool, 11),
+    gallery: getPoolGallery(glassImagePool, 11),
+    glassType: "Trinkgläser",
     shopCategory: "alle-glaeser",
     collection: "Studio Kollektion",
     collectionSlug: "studio",
     designer: "Studio",
     occasion: "Elegant",
-    description: "Ruhiges Signaturmotiv fuer hochwertige Everyday-Tabletops.",
+    description: "Ruhiges Signaturmotiv für hochwertige Everyday-Tabletops.",
     featured: true,
     care: "Spuelmaschinengeeignet im Glasprogramm.",
     benefits: ["Harmonisches Design", "Robuste Alltagstauglichkeit", "Klarer Premium-Look"],
@@ -344,24 +310,19 @@ export const products: Product[] = [
     id: "gu-001",
     name: "Untersetzer Slate Signature",
     price: 18.9,
-    image:
-      "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Glasuntersaetzer",
+    image: getPoolImage(coasterImagePool, 0),
+    gallery: getPoolGallery(coasterImagePool, 0),
+    glassType: "Glasuntersätzer",
     shopCategory: "glasuntersetzer",
     collection: "Andrea's Designs",
     collectionSlug: "andrea",
     designer: "Andrea",
     occasion: "Elegant",
-    description: "Vierer-Set aus dunklem Schiefer mit feiner Gravur fuer ruhige, elegante Table-Settings.",
+    description: "Vierer-Set aus dunklem Schiefer mit feiner Gravur für ruhige, elegante Table-Settings.",
     badge: "Neu",
     featured: true,
     care: "Mit feuchtem Tuch reinigen und trocken lagern.",
-    benefits: ["Rutschhemmende Unterseite", "Edle Natursteinoptik", "Perfekt fuer Geschenksets"],
+    benefits: ["Rutschhemmende Unterseite", "Edle Natursteinoptik", "Perfekt für Geschenksets"],
     rating: 4.8,
     reviews: 36
   },
@@ -369,23 +330,18 @@ export const products: Product[] = [
     id: "gu-002",
     name: "Untersetzer Oak Crest",
     price: 16.9,
-    image:
-      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=1000&q=80"
-    ],
-    glassType: "Glasuntersaetzer",
+    image: getPoolImage(coasterImagePool, 1),
+    gallery: getPoolGallery(coasterImagePool, 1),
+    glassType: "Glasuntersätzer",
     shopCategory: "glasuntersetzer",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
     occasion: "Geburtstag",
-    description: "Warme Holzoptik mit markanter Gravur als laessige Ergaenzung fuer Hausbar und Dinner-Tisch.",
+    description: "Warme Holzoptik mit markanter Gravur als laessige Ergänzung für Hausbar und Dinner-Tisch.",
     featured: false,
     care: "Trocken abwischen und nicht dauerhaft im Wasser liegen lassen.",
-    benefits: ["Natuerliche Haptik", "Schnell verschenkt", "Schuetzt empfindliche Flaechen"],
+    benefits: ["Natuerliche Haptik", "Schnell verschenkt", "Schuetzt empfindliche Flächen"],
     rating: 4.6,
     reviews: 28
   },
@@ -393,23 +349,18 @@ export const products: Product[] = [
     id: "ba-001",
     name: "Cheers Set Hochzeit",
     price: 49.9,
-    image:
-      "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1524594154908-edd6d5f6f410?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=1000&q=80"
-    ],
+    image: getPoolImage(glassImagePool, 0),
+    gallery: [getPoolImage(glassImagePool, 0), getPoolImage(glassImagePool, 7), getPoolImage(coasterImagePool, 0)],
     glassType: "Bundle-Angebote",
     shopCategory: "bundle-angebote",
     collection: "Studio Kollektion",
     collectionSlug: "studio",
     designer: "Studio",
     occasion: "Hochzeit",
-    description: "Geschenkset aus zwei Sektglaesern und passenden Untersetzern mit sichtbarem Preisvorteil.",
+    description: "Geschenkset aus zwei Sektgläsern und passenden Untersetzern mit sichtbarem Preisvorteil.",
     badge: "Bundle Deal",
     featured: true,
-    care: "Glaeser im Schonprogramm, Untersetzer trocken reinigen.",
+    care: "Gläser im Schonprogramm, Untersetzer trocken reinigen.",
     benefits: ["Preisvorteil im Set", "Direkt geschenkfaehig", "Hochwertiger Anlass-Look"],
     rating: 4.9,
     reviews: 52
@@ -418,36 +369,31 @@ export const products: Product[] = [
     id: "ba-002",
     name: "Bar Bundle Signature",
     price: 59.9,
-    image:
-      "https://images.unsplash.com/photo-1514361892635-eae31ec16bbf?auto=format&fit=crop&w=1000&q=80",
-    gallery: [
-      "https://images.unsplash.com/photo-1514361892635-eae31ec16bbf?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1000&q=80",
-      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1000&q=80"
-    ],
+    image: getPoolImage(glassImagePool, 4),
+    gallery: [getPoolImage(glassImagePool, 4), getPoolImage(glassImagePool, 10), getPoolImage(coasterImagePool, 1)],
     glassType: "Bundle-Angebote",
     shopCategory: "bundle-angebote",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
-    occasion: "Jubilaeum",
-    description: "Bierglas- und Shotglas-Set mit abgestimmten Untersetzern fuer eine starke Geschenkloesung.",
+    occasion: "Jubiläum",
+    description: "Bierglas- und Shotglas-Set mit abgestimmten Untersetzern für eine starke Geschenkloesung.",
     badge: "Spare 12 EUR",
     featured: true,
-    care: "Glaeser im Glasprogramm reinigen, Untersetzer nur feucht abwischen.",
-    benefits: ["Sofort einsatzbereit", "Markanter Set-Charakter", "Ideal fuer Hausbar und Feiern"],
+    care: "Gläser im Glasprogramm reinigen, Untersetzer nur feucht abwischen.",
+    benefits: ["Sofort einsatzbereit", "Markanter Set-Charakter", "Ideal für Hausbar und Feiern"],
     rating: 4.7,
     reviews: 41
   }
 ];
 
 export const glassTypes = [
-  "Sektglaeser",
-  "Schnapsglaeser",
-  "Bierglaeser",
-  "Trinkglaeser",
-  "Glasuntersaetzer",
+  "Sektgläser",
+  "Schnapsgläser",
+  "Biergläser",
+  "Trinkgläser",
+  "Glasuntersätzer",
   "Bundle-Angebote"
 ] as const;
-export const occasions = ["Hochzeit", "Geburtstag", "Jubilaeum", "Lustig", "Elegant"] as const;
+export const occasions = ["Hochzeit", "Geburtstag", "Jubiläum", "Lustig", "Elegant"] as const;
 

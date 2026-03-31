@@ -4,12 +4,12 @@ const items = [
     a: "Ja. Alle Produkte sind fix fertige Designs ohne Konfigurator oder Editor."
   },
   {
-    q: "Wie pflege ich die gravierten Glaeser?",
-    a: "Je nach Produkt empfehlen wir Schonprogramm oder Handwaesche. Den Hinweis findest du auf jeder Produktseite."
+    q: "Wie pflege ich die gravierten Gläser?",
+    a: "Je nach Produkt empfehlen wir Schonprogramm oder Handwäsche. Den Hinweis findest du auf jeder Produktseite."
   },
   {
     q: "Gibt es Geschenkideen nach Anlass?",
-    a: "Ja. Im Shop kannst du nach Anlass filtern, z. B. Hochzeit, Geburtstag oder Jubilaeum."
+    a: "Ja. Im Shop kannst du nach Anlass filtern, z. B. Hochzeit, Geburtstag oder Jubiläum."
   },
   {
     q: "Wie schnell wird geliefert?",
@@ -22,7 +22,7 @@ export function Faq() {
     <section className="section">
       <div className="shell rounded-3xl border border-[var(--line)] bg-white p-6 md:p-8 card-shadow">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand)]">FAQ</p>
-        <h2 className="mt-2 text-3xl font-bold">Haeufige Fragen</h2>
+        <h2 className="mt-2 text-3xl font-bold">Häufige Fragen</h2>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           {items.map((item) => (

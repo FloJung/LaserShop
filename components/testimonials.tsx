@@ -6,8 +6,8 @@ const testimonials = [
   },
   {
     name: "Jan K.",
-    quote: "Sehr schnelle Lieferung. Die Studio-Kollektion hat bei unserem Jubilaeum alle beeindruckt.",
-    tag: "Jubilaeum"
+    quote: "Sehr schnelle Lieferung. Die Studio-Kollektion hat bei unserem Jubiläum alle beeindruckt.",
+    tag: "Jubiläum"
   },
   {
     name: "Sophie R.",
@@ -22,7 +22,7 @@ export function Testimonials() {
       <div className="shell">
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand)]">Kundenstimmen</p>
-          <h2 className="mt-2 text-3xl font-bold">Was Kunden ueber unsere Glaeser sagen</h2>
+          <h2 className="mt-2 text-3xl font-bold">Was Kunden über unsere Gläser sagen</h2>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">

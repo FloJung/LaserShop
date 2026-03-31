@@ -53,7 +53,7 @@ export function FilterBar({
 
       <div className="flex gap-2">
         <select name="occasion" defaultValue={occasion ?? ""} className={`${baseInput} flex-1`}>
-          <option value="">Alle Anlaesse</option>
+          <option value="">Alle Anlässe</option>
           {occasions.map((item) => (
             <option key={item} value={item}>
               {item}
@@ -68,7 +68,7 @@ export function FilterBar({
 
       <div className={resetSpanClass}>
         <Link href={resetHref} className="text-sm font-medium text-[var(--brand)]">
-          Filter zuruecksetzen
+          Filter zurücksetzen
         </Link>
       </div>
     </form>

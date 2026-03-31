@@ -1,15 +1,15 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ShieldCheck, Truck, Sparkles, HeartHandshake } from "lucide-react";
 import { AddToCartButton } from "@/components/add-to-cart-button";
 import { ProductCard } from "@/components/product-card";
+import { ProductGallery } from "@/components/product-gallery";
 import { Rating } from "@/components/rating";
 import { SectionHeading } from "@/components/section-heading";
 import { formatPrice, getProductById, getSimilarProducts } from "@/lib/shop";
 import { notFound } from "next/navigation";
 
 const trustItems = [
-  { icon: Sparkles, label: "Praezise Lasergravur" },
+  { icon: Sparkles, label: "Präzise Lasergravur" },
   { icon: ShieldCheck, label: "Sichere Bezahlung" },
   { icon: Truck, label: "Schneller Versand" },
   { icon: HeartHandshake, label: "Ideal als Geschenk" }
@@ -28,23 +28,13 @@ export default async function ProductPage({
   }
 
   const recommendations = getSimilarProducts(product, 4);
+  const galleryImages = [product.image, ...product.gallery.filter((item) => item !== product.image)];
 
   return (
     <>
       <section className="section">
-        <div className="shell grid gap-6 xl:grid-cols-[1.1fr_1fr]">
-          <div className="rounded-3xl border border-[var(--line)] bg-white p-4 card-shadow">
-            <div className="relative aspect-square overflow-hidden rounded-2xl bg-[var(--muted-surface)]">
-              <Image src={product.image} alt={product.name} fill className="object-cover" />
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {product.gallery.map((item, index) => (
-                <div key={`${item}-${index}`} className="relative aspect-square overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--muted-surface)]">
-                  <Image src={item} alt={`${product.name} Galerie ${index + 1}`} fill className="object-cover" />
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="shell grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)]">
+          <ProductGallery images={galleryImages} productName={product.name} />
 
           <div className="space-y-5 rounded-3xl border border-[var(--line)] bg-white p-6 md:p-8 card-shadow">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">{product.collection}</p>
@@ -90,7 +80,7 @@ export default async function ProductPage({
             </div>
 
             <Link href="/shop" className="inline-block text-sm font-semibold text-[var(--brand)]">
-              Zurueck zum Shop
+              Zurück zum Shop
             </Link>
           </div>
         </div>
@@ -98,7 +88,7 @@ export default async function ProductPage({
 
       <section className="section pt-0">
         <div className="shell">
-          <SectionHeading title="Aehnliche Produkte" description="Weitere passende Designs fuer schnelle Anschlusskaeufe." />
+          <SectionHeading title="Ähnliche Produkte" description="Weitere passende Designs für schnelle Anschlusskaeufe." />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {recommendations.map((item) => (
               <ProductCard key={item.id} product={item} />

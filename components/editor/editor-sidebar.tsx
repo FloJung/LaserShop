@@ -45,7 +45,7 @@ export function EditorSidebar({
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">Werkzeuge</p>
         <p className="mt-2 text-sm text-[var(--text-soft)]">
-          Kompakte Schnellaktionen fuer Layout, Symbole und Uploads. Details des gewaehlten Elements bearbeitest du
+          Kompakte Schnellaktionen für Layout, Symbole und Uploads. Details des gewaehlten Elements bearbeitest du
           rechts.
         </p>
       </div>
@@ -70,9 +70,9 @@ export function EditorSidebar({
       <div className="rounded-2xl bg-[var(--muted-surface)] p-4">
         <p className="text-sm font-semibold">Workflow</p>
         <div className="mt-3 space-y-2 text-sm text-[var(--text-soft)]">
-          <p>1. Vorlage oeffnen oder mit leerer Flaeche starten.</p>
-          <p>2. Elemente ueber die kompakte Werkzeugleiste einfuegen.</p>
-          <p>3. Position, Groesse und Inhalt im Eigenschaften-Panel feinjustieren.</p>
+          <p>1. Vorlage öffnen oder mit leerer Fläche starten.</p>
+          <p>2. Elemente über die kompakte Werkzeugleiste einfuegen.</p>
+          <p>3. Position, Größe und Inhalt im Eigenschaften-Panel feinjustieren.</p>
         </div>
       </div>
 

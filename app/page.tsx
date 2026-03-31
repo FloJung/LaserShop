@@ -13,7 +13,7 @@ import { getFeaturedProducts } from "@/lib/shop";
 const giftIdeas = [
   { label: "Hochzeit", href: "/shop?occasion=Hochzeit" },
   { label: "Geburtstag", href: "/shop?occasion=Geburtstag" },
-  { label: "Jubilaeum", href: "/shop?occasion=Jubilaeum" },
+  { label: "Jubiläum", href: "/shop?occasion=Jubiläum" },
   { label: "Lustig", href: "/shop?occasion=Lustig" },
   { label: "Elegant", href: "/shop?occasion=Elegant" }
 ];
@@ -30,10 +30,10 @@ export default function HomePage() {
               <Sparkles size={16} /> Hochwertige Lasergravuren
             </p>
             <h1 className="mt-5 max-w-xl font-[var(--font-serif)] text-4xl leading-tight md:text-6xl">
-              Gravierte Glaeser mit Boutique-Look und klarer Shop-Logik
+              Gravierte Gläser mit Boutique-Look und klarer Shop-Logik
             </h1>
             <p className="mt-4 max-w-xl text-lg text-[var(--text-soft)]">
-              Entdecke fertige Designglaeser fuer Geschenke und besondere Momente. Schnell finden, sofort kaufen.
+              Entdecke fertige Designgläser für Geschenke und besondere Momente. Schnell finden, sofort kaufen.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
@@ -55,8 +55,8 @@ export default function HomePage() {
           <div className="relative overflow-hidden rounded-[2rem] border border-[var(--line)] bg-white p-3 card-shadow">
             <div className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem]">
               <Image
-                src="https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=1400&q=80"
-                alt="Hero Bild mit gravierten Glaesern"
+                src="/images/glas/2er-set-weinglas-ringe-personalisiert-699d1e.jpg"
+                alt="Hero Bild mit gravierten Gläsern"
                 fill
                 className="object-cover"
                 priority
@@ -71,7 +71,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Designwelten"
             title="Kuratierte Designer-Kollektionen"
-            description="Drei eigenstaendige Collection-Bereiche innerhalb derselben Marke fuer schnelle Orientierung und klares Styling."
+            description="Drei eigenstaendige Collection-Bereiche innerhalb derselben Marke für schnelle Orientierung und klares Styling."
           />
           <div className="grid gap-5">
             {collections.map((collection) => (
@@ -86,7 +86,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Kategorien"
             title="Nach Angebotsbereich shoppen"
-            description="Drei klare Einstiege fuer das gesamte Sortiment: alle Glaeser, passende Untersetzer und gebuendelte Deals."
+            description="Drei klare Einstiege für das gesamte Sortiment: alle Gläser, passende Untersetzer und gebuendelte Deals."
           />
           <div className="grid gap-3 md:grid-cols-3">
             {shopCategories.map((category) => (
@@ -112,7 +112,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Bestseller"
             title="Beliebte Produkte"
-            description="Preis, Designwelt und Kaufbutton direkt sichtbar fuer hohe Scanbarkeit und schnelle Entscheidungen."
+            description="Preis, Designwelt und Kaufbutton direkt sichtbar für hohe Scanbarkeit und schnelle Entscheidungen."
             action={
               <Link href="/shop" className="text-sm font-semibold text-[var(--brand)]">
                 Alle Produkte ansehen
@@ -133,7 +133,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Geschenkideen"
             title="Finde Designs nach Anlass"
-            description="Schneller Conversion-Pfad: Anlass waehlen, relevante Produkte sehen, sofort kaufen."
+            description="Schneller Conversion-Pfad: Anlass wählen, relevante Produkte sehen, sofort kaufen."
           />
           <div className="flex flex-wrap gap-3">
             {giftIdeas.map((idea) => (

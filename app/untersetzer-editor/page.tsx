@@ -7,8 +7,8 @@ export default function CoasterEditorPage() {
       <div className="shell space-y-6">
         <SectionHeading
           eyebrow="Selbst gestalten"
-          title="Design-Tool fuer Glasuntersaetzer"
-          description="Gestalte eine feste 10 x 10 cm Flaeche mit Text, Icons und einfachen Design-Elementen. Das Ergebnis wird als JSON gespeichert und direkt dem Produkt Glasuntersaetzer Custom zugeordnet."
+          title="Design-Tool für Glasuntersätzer"
+          description="Gestalte eine feste 10 x 10 cm Fläche mit Text, Icons und einfachen Design-Elementen. Das Ergebnis wird als JSON gespeichert und direkt dem Produkt Glasuntersätzer Custom zugeordnet."
         />
         <CoasterEditor />
       </div>

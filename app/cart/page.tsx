@@ -8,7 +8,7 @@ export default function CartRoute() {
         <SectionHeading
           eyebrow="Warenkorb"
           title="Deine Auswahl"
-          description="Hier siehst du Standardprodukte und individuell gestaltete Glasuntersaetzer inklusive Vorschau."
+          description="Hier siehst du Standardprodukte und individuell gestaltete Glasuntersätzer inklusive Vorschau."
         />
         <CartPage />
       </div>

@@ -57,7 +57,7 @@ export function EditorPropertiesPanel({
         <p className="mt-2 text-sm text-[var(--text-soft)]">
           {selectedElement
             ? "Passe das aktuell gewaehlte Element direkt an."
-            : "Waehle ein Element auf der Flaeche aus, um Inhalt, Position und Groesse zu bearbeiten."}
+            : "Wähle ein Element auf der Fläche aus, um Inhalt, Position und Größe zu bearbeiten."}
         </p>
       </div>
 
@@ -104,7 +104,7 @@ export function EditorPropertiesPanel({
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Schriftgroesse">
+                <Field label="Schriftgröße">
                   <input
                     className={inputClassName}
                     type="number"
@@ -337,12 +337,12 @@ export function EditorPropertiesPanel({
 
           <Button variant="secondary" className="w-full" onClick={onDelete}>
             <Trash2 size={16} />
-            Element loeschen
+            Element löschen
           </Button>
         </div>
       ) : (
         <div className="rounded-2xl bg-[var(--muted-surface)] p-4 text-sm text-[var(--text-soft)]">
-          Waehle ein Objekt auf der Arbeitsflaeche oder nutze links die Werkzeugleiste, um neue Elemente hinzuzufuegen.
+          Wähle ein Objekt auf der Arbeitsfläche oder nutze links die Werkzeugleiste, um neue Elemente hinzuzufuegen.
         </div>
       )}
 

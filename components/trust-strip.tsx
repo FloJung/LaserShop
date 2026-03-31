@@ -3,13 +3,13 @@ import { CheckCircle2, ShieldCheck, Truck, Sparkles, Gift } from "lucide-react";
 const items = [
   {
     icon: Sparkles,
-    title: "Praezise Lasergravur",
+    title: "Präzise Lasergravur",
     description: "Scharfe Konturen ohne Verblassen."
   },
   {
     icon: CheckCircle2,
-    title: "Hochwertige Glaeser",
-    description: "Ausgewaehlte Qualitaet fuer Alltag und Anlass."
+    title: "Hochwertige Gläser",
+    description: "Ausgewählte Qualitaet für Alltag und Anlass."
   },
   {
     icon: Gift,

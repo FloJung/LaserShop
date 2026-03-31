@@ -1,15 +1,15 @@
 export type GlassType =
-  | "Sektglaeser"
-  | "Schnapsglaeser"
-  | "Bierglaeser"
-  | "Trinkglaeser"
-  | "Glasuntersaetzer"
+  | "Sektgläser"
+  | "Schnapsgläser"
+  | "Biergläser"
+  | "Trinkgläser"
+  | "Glasuntersätzer"
   | "Bundle-Angebote";
 
 export type CollectionSlug = "flo" | "andrea" | "studio";
 export type ShopCategorySlug = "alle-glaeser" | "glasuntersetzer" | "bundle-angebote";
 
-export type Occasion = "Hochzeit" | "Geburtstag" | "Jubilaeum" | "Lustig" | "Elegant";
+export type Occasion = "Hochzeit" | "Geburtstag" | "Jubiläum" | "Lustig" | "Elegant";
 
 export type Product = {
   id: string;

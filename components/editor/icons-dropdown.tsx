@@ -55,7 +55,7 @@ export function IconsDropdown({ onAddIcon }: { onAddIcon: (iconId: IconId) => vo
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">Icon-Bibliothek</p>
-              <p className="mt-1 text-sm text-[var(--text-soft)]">Waehle ein Symbol fuer die Arbeitsflaeche.</p>
+              <p className="mt-1 text-sm text-[var(--text-soft)]">Wähle ein Symbol für die Arbeitsfläche.</p>
             </div>
           </div>
 

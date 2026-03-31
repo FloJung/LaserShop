@@ -26,7 +26,7 @@ export function EditorActionBar({
       </Button>
       <Button variant="secondary" onClick={onReset}>
         <RotateCcw size={16} />
-        Zuruecksetzen
+        Zurücksetzen
       </Button>
       <Button variant="secondary" onClick={onSave} disabled={isSaving}>
         <Save size={16} />

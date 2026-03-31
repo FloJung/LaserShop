@@ -16,9 +16,9 @@ const serif = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Laser Shop | Premium gravierte Glaeser",
+  title: "Laser Shop | Premium gravierte Gläser",
   description:
-    "Moderne E-Commerce-Website fuer hochwertige, vorgravierte Glaeser mit klarer Shop-Struktur."
+    "Moderne E-Commerce-Website für hochwertige, vorgravierte Gläser mit klarer Shop-Struktur."
 };
 
 export default function RootLayout({

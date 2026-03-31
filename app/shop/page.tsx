@@ -31,7 +31,7 @@ export default async function ShopPage({
         <SectionHeading
           eyebrow="Shop"
           title="Alle gravierten Produkte und Angebote"
-          description="Filtere nach Produktart, Kollektion und Anlass fuer eine schnelle Produktauswahl mit klarer Kaufentscheidung."
+          description="Filtere nach Produktart, Kollektion und Anlass für eine schnelle Produktauswahl mit klarer Kaufentscheidung."
         />
 
         <FilterBar

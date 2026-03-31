@@ -38,14 +38,14 @@ export function EditorToolbar({
       <div className="flex flex-wrap items-center gap-2">
         <ToolButton
           icon={<MousePointer2 size={17} />}
-          label="Objekt auswaehlen"
-          description="Auswahl auf der Arbeitsflaeche fokussieren oder aufheben"
+          label="Objekt auswählen"
+          description="Auswahl auf der Arbeitsfläche fokussieren oder aufheben"
           isActive={activeTool === "select"}
           onClick={onActivateSelectTool}
         />
         <ToolButton
           icon={<Type size={17} />}
-          label="Text hinzufuegen"
+          label="Text hinzufügen"
           description="Einen neuen bearbeitbaren Textblock einfuegen"
           onClick={onAddText}
         />
@@ -60,7 +60,7 @@ export function EditorToolbar({
         <ToolButton
           icon={<Ruler size={17} />}
           label="Abstand messen"
-          description="Temporare Messlinie mit mm-Anzeige ziehen. Halte Shift fuer Kanten-Docking."
+          description="Temporare Messlinie mit mm-Anzeige ziehen. Halte Shift für Kanten-Docking."
           isActive={activeTool === "measure"}
           onClick={onActivateMeasureTool}
         />
@@ -68,20 +68,20 @@ export function EditorToolbar({
         <ToolButton
           icon={<Shapes size={17} />}
           label="Rahmen einfuegen"
-          description="Einen klaren Rahmen fuer das Layout platzieren"
+          description="Einen klaren Rahmen für das Layout platzieren"
           onClick={onAddFrame}
         />
         <div className="hidden h-8 w-px bg-[var(--line)] sm:block" />
         <ToolButton
           icon={<Upload size={17} />}
           label="Grafik hochladen"
-          description="SVG, PNG oder JPG fuer die Gravurvorschau einfuegen"
+          description="SVG, PNG oder JPG für die Gravurvorschau einfuegen"
           onClick={onUpload}
         />
         <ToolButton
           icon={<Trash2 size={17} />}
-          label="Loeschen"
-          description="Das aktuell ausgewaehlte Element entfernen"
+          label="Löschen"
+          description="Das aktuell ausgewählte Element entfernen"
           disabled={!hasSelection}
           onClick={onDelete}
         />

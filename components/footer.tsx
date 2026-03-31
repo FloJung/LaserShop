@@ -8,7 +8,7 @@ export function Footer() {
         <div>
           <p className="font-[var(--font-serif)] text-2xl">Laser Shop</p>
           <p className="mt-3 text-sm text-[var(--text-soft)]">
-            Premium-E-Commerce fuer gravierte Glaeser, passende Accessoires und kuratierte Geschenksets.
+            Premium-E-Commerce für gravierte Gläser, passende Accessoires und kuratierte Geschenksets.
           </p>
         </div>
 

@@ -1,7 +1,14 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { CUSTOM_COASTER_PRODUCT, calculateCartCount, calculateCartSubtotal, createCartItemFromProduct } from "@/lib/cart";
+import {
+  CUSTOM_COASTER_PRODUCT,
+  calculateCartCount,
+  calculateCartSubtotal,
+  createCartItemFromProduct,
+  sanitizeCartItem,
+  sanitizeCartItems
+} from "@/lib/cart";
 import type { CartItem } from "@/lib/cart";
 import type { CoasterDesignDocument } from "@/lib/design-tool";
 import type { Product } from "@/lib/types";
@@ -35,14 +42,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      setItems(JSON.parse(stored) as CartItem[]);
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) {
+        window.localStorage.removeItem(CART_STORAGE_KEY);
+        return;
+      }
+
+      setItems(sanitizeCartItems(parsed as CartItem[]));
     } catch {
       window.localStorage.removeItem(CART_STORAGE_KEY);
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(sanitizeCartItems(items)));
   }, [items]);
 
   const value = useMemo<CartContextValue>(() => {
@@ -55,7 +68,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const existing = current.find((item) => item.lineType === "product" && item.productId === product.id);
           if (existing) {
             return current.map((item) =>
-              item.id === existing.id ? { ...item, quantity: item.quantity + 1 } : item
+              item.id === existing.id ? sanitizeCartItem({ ...item, quantity: item.quantity + 1 }) : sanitizeCartItem(item)
             );
           }
 
@@ -64,8 +77,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       },
       addCustomDesign: ({ designJson, previewImage }) => {
         setItems((current) => [
-          ...current,
-          {
+          ...current.map(sanitizeCartItem),
+          sanitizeCartItem({
             id: makeId("custom"),
             lineType: "custom-design",
             productId: CUSTOM_COASTER_PRODUCT.id,
@@ -76,7 +89,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             previewImage,
             subtitle: "10 x 10 cm · Individuelle Gravur",
             designJson
-          }
+          })
         ]);
       },
       removeItem: (itemId) => {
@@ -86,14 +99,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setItems((current) =>
           current.flatMap((item) => {
             if (item.id !== itemId) {
-              return [item];
+              return [sanitizeCartItem(item)];
             }
 
             if (quantity <= 0) {
               return [];
             }
 
-            return [{ ...item, quantity }];
+            return [sanitizeCartItem({ ...item, quantity })];
           })
         );
       },

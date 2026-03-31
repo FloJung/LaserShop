@@ -32,13 +32,13 @@ export default async function CategoryPage({
           {shopCategory.slug === "glasuntersetzer" && products.length > 0 ? (
             <CategoryPromoBanner
               eyebrow="Kategorie-Highlight"
-              title="Gravierte Glasuntersaetzer mit Premium-Look"
-              description="Entdecke kuratierte Untersetzer fuer Hausbar, Tisch und Geschenksets. Die Designs greifen die Sprache der Kollektionen auf und geben jedem Arrangement einen sichtbar hochwertigeren Abschluss."
+              title="Gravierte Glasuntersätzer mit Premium-Look"
+              description="Entdecke kuratierte Untersetzer für Hausbar, Tisch und Geschenksets. Die Designs greifen die Sprache der Kollektionen auf und geben jedem Arrangement einen sichtbar hochwertigeren Abschluss."
               cta={{ label: "Selbst Gestalten", href: "/untersetzer-editor" }}
               mainImage={products[0].image}
-              mainImageAlt="Gravierter Glasuntersaetzer"
+              mainImageAlt="Gravierter Glasuntersätzer"
               accentImage={products[1]?.image ?? products[0].image}
-              accentImageAlt="Designbeispiel fuer Glasuntersaetzer"
+              accentImageAlt="Designbeispiel für Glasuntersätzer"
             />
           ) : null}
 

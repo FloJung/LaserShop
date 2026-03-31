@@ -150,10 +150,10 @@ export const TEMPLATE_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  { id: "blank", label: "Leer", description: "Starte mit einer freien 10 x 10 cm Flaeche." },
+  { id: "blank", label: "Leer", description: "Starte mit einer freien 10 x 10 cm Fläche." },
   { id: "wedding", label: "Hochzeit", description: "Feine Linien, Herzmotiv und ruhige Typografie." },
   { id: "initials", label: "Initialen", description: "Monogramm-Look mit klarer Zentrierung." },
-  { id: "modern", label: "Modern", description: "Reduziertes Layout fuer einen sauberen Premium-Look." },
+  { id: "modern", label: "Modern", description: "Reduziertes Layout für einen sauberen Premium-Look." },
   { id: "birthday", label: "Geburtstag", description: "Verspielter Aufbau mit Symbol und kurzer Botschaft." }
 ];
 
@@ -988,7 +988,7 @@ export async function convertUploadToEngravingPreview(file: File) {
   }
 
   if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error("Die Datei ist groesser als 5 MB.");
+    throw new Error("Die Datei ist größer als 5 MB.");
   }
 
   const source = await readFileAsDataUrl(file);

@@ -59,12 +59,12 @@ export function FormsDropdown({
         <ShapeIcon shapeType={activeShapeType} />
         <ChevronDown size={12} className={cn("text-[var(--text-soft)] transition", isOpen && "rotate-180")} />
       </button>
-      <ToolTooltip label="Formen" description={`${activeShapeLabel} auswaehlen und auf der Flaeche zeichnen`} />
+      <ToolTooltip label="Formen" description={`${activeShapeLabel} auswählen und auf der Fläche zeichnen`} />
 
       {isOpen ? (
         <div className="absolute left-0 top-full z-30 mt-3 w-[220px] rounded-3xl border border-[var(--line)] bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">Formen</p>
-          <p className="mt-1 text-sm text-[var(--text-soft)]">Waehle die Form fuer den Zwei-Klick-Zeichenmodus.</p>
+          <p className="mt-1 text-sm text-[var(--text-soft)]">Wähle die Form für den Zwei-Klick-Zeichenmodus.</p>
 
           <div className="mt-4 space-y-2">
             {DRAWABLE_SHAPES.map((shape) => (
