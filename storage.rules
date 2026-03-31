@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == "admin";
+    }
+
+    match /products/{productId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /customer-uploads/pending/{uploadId}/{fileName} {
+      allow read: if isAdmin();
+      allow write: if
+        request.resource != null &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        firestore.get(/databases/(default)/documents/uploads/$(uploadId)).data.reviewStatus == "pending_upload" &&
+        (
+          firestore.get(/databases/(default)/documents/uploads/$(uploadId)).data.allowGuestUpload == true ||
+          (
+            isSignedIn() &&
+            firestore.get(/databases/(default)/documents/uploads/$(uploadId)).data.ownerUid == request.auth.uid
+          )
+        );
+    }
+
+    match /customer-uploads/{orderId}/{itemId}/{allPaths=**} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

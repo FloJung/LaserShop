@@ -22,7 +22,7 @@ export default async function CategoryPage({
   const shopCategory = getShopCategory(slug as ShopCategorySlug);
 
   if (shopCategory) {
-    const products = getProductsByShopCategory(shopCategory.slug);
+    const products = await getProductsByShopCategory(shopCategory.slug);
 
     return (
       <section className="section">
@@ -56,7 +56,7 @@ export default async function CategoryPage({
     notFound();
   }
 
-  const products = getProductsByGlassType(slug);
+  const products = await getProductsByGlassType(slug);
 
   return (
     <section className="section">

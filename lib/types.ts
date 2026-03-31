@@ -30,6 +30,11 @@ export type Product = {
   benefits: string[];
   rating: number;
   reviews: number;
+  defaultVariantId?: string;
+  currency?: "EUR";
+  isPersonalizable?: boolean;
+  slug?: string;
+  source?: "static" | "firebase";
 };
 
 export type DesignerCollection = {

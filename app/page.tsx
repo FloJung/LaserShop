@@ -18,8 +18,8 @@ const giftIdeas = [
   { label: "Elegant", href: "/shop?occasion=Elegant" }
 ];
 
-export default function HomePage() {
-  const featuredProducts = getFeaturedProducts(8);
+export default async function HomePage() {
+  const featuredProducts = await getFeaturedProducts(8);
 
   return (
     <>

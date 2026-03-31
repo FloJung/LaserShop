@@ -32,7 +32,7 @@ export default async function CollectionPage({
     occasion: readParam(query.occasion)
   };
 
-  const items = filterProducts({
+  const items = await filterProducts({
     ...filters,
     collection: collection.slug
   });

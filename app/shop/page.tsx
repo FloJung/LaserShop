@@ -23,7 +23,7 @@ export default async function ShopPage({
     occasion: readParam(params.occasion)
   };
 
-  const visibleProducts = filterProducts(filters);
+  const visibleProducts = await filterProducts(filters);
 
   return (
     <section className="section">

@@ -82,6 +82,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             id: makeId("custom"),
             lineType: "custom-design",
             productId: CUSTOM_COASTER_PRODUCT.id,
+            variantId: CUSTOM_COASTER_PRODUCT.variantId,
             name: CUSTOM_COASTER_PRODUCT.name,
             price: CUSTOM_COASTER_PRODUCT.price,
             quantity: 1,

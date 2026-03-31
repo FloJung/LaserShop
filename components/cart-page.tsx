@@ -6,7 +6,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/button";
 import { useCart } from "@/components/cart-provider";
 import { getSafeCartItemImage } from "@/lib/cart";
-import { formatPrice } from "@/lib/shop";
+import { formatPrice } from "@/lib/money";
 
 export function CartPage() {
   const { items, subtotal, updateQuantity, removeItem, clearCart } = useCart();
@@ -130,7 +130,12 @@ export function CartPage() {
           </div>
         </div>
 
-        <Button className="mt-6 w-full">Zur Kasse</Button>
+        <Link
+          href="/checkout"
+          className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)]"
+        >
+          Zur Kasse
+        </Link>
         <Button variant="secondary" className="mt-3 w-full" onClick={clearCart}>
           Warenkorb leeren
         </Button>

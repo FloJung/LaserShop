@@ -5,7 +5,8 @@ import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
 import { Rating } from "@/components/rating";
 import { SectionHeading } from "@/components/section-heading";
-import { formatPrice, getProductById, getSimilarProducts } from "@/lib/shop";
+import { formatPrice } from "@/lib/money";
+import { getProductById, getSimilarProducts } from "@/lib/shop";
 import { notFound } from "next/navigation";
 
 const trustItems = [
@@ -21,13 +22,13 @@ export default async function ProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = getProductById(id);
+  const product = await getProductById(id);
 
   if (!product) {
     notFound();
   }
 
-  const recommendations = getSimilarProducts(product, 4);
+  const recommendations = await getSimilarProducts(product, 4);
   const galleryImages = [product.image, ...product.gallery.filter((item) => item !== product.image)];
 
   return (
