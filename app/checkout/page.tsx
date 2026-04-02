@@ -6,9 +6,9 @@ export default function CheckoutPage() {
     <section className="section">
       <div className="shell space-y-6">
         <SectionHeading
-          eyebrow="Checkout"
-          title="Bestellung serverseitig absichern"
-          description="Die Preise und Konfigurationen werden ueber Firebase Functions validiert, bevor eine Order geschrieben wird."
+          eyebrow="Legacy Checkout"
+          title="Interner Firebase-Checkout ist nicht der aktive Kaufpfad"
+          description="Der aktive Storefront-Checkout laeuft ueber Shopify. Diese Seite bleibt nur als interner Altpfad fuer die bestehende Firebase-Orderlogik erhalten."
         />
         <CheckoutForm />
       </div>

@@ -3,9 +3,18 @@ import { createCartCheckoutSession } from "@/lib/server/shopify";
 
 type CreateCartCheckoutRequest = {
   lines?: Array<{
+    id?: string;
+    lineType?: "product" | "custom-design";
     productId?: string;
     variantId?: string;
     quantity?: number;
+    name?: string;
+    price?: number;
+    image?: string;
+    previewImage?: string;
+    subtitle?: string;
+    configurations?: unknown;
+    designJson?: unknown;
   }>;
 };
 
@@ -24,9 +33,18 @@ export async function POST(request: Request) {
   const lines = Array.isArray(body.lines)
     ? body.lines
         .map((line) => ({
+          lineId: typeof line.id === "string" ? line.id.trim() : undefined,
+          lineType: line.lineType === "custom-design" ? ("custom-design" as const) : ("product" as const),
           productId: typeof line.productId === "string" ? line.productId.trim() : "",
           variantId: typeof line.variantId === "string" ? line.variantId.trim() : "",
-          quantity: normalizeQuantity(line.quantity)
+          quantity: normalizeQuantity(line.quantity),
+          name: typeof line.name === "string" ? line.name : undefined,
+          price: typeof line.price === "number" && Number.isFinite(line.price) ? line.price : undefined,
+          image: typeof line.image === "string" ? line.image : undefined,
+          previewImage: typeof line.previewImage === "string" ? line.previewImage : undefined,
+          subtitle: typeof line.subtitle === "string" ? line.subtitle : undefined,
+          configurations: line.configurations,
+          designJson: line.designJson
         }))
         .filter((line) => line.productId && line.variantId && Number.isInteger(line.quantity) && line.quantity > 0)
     : [];

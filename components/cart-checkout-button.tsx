@@ -20,11 +20,7 @@ export function CartCheckoutButton({ className }: { className?: string }) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          lines: items.map((item) => ({
-            productId: item.productId,
-            variantId: item.variantId,
-            quantity: item.quantity
-          }))
+          lines: items
         })
       });
 

@@ -2,9 +2,18 @@ import { NextResponse } from "next/server";
 import { createCheckoutSession } from "@/lib/server/shopify";
 
 type CreateCheckoutRequest = {
+  lineId?: string;
+  lineType?: "product" | "custom-design";
   productId?: string;
   variantId?: string;
   quantity?: number;
+  name?: string;
+  price?: number;
+  image?: string;
+  previewImage?: string;
+  subtitle?: string;
+  configurations?: unknown;
+  designJson?: unknown;
 };
 
 function normalizeQuantity(value: unknown) {
@@ -28,7 +37,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const checkoutUrl = await createCheckoutSession(productId, variantId, quantity);
+    const checkoutUrl = await createCheckoutSession(productId, variantId, quantity, {
+      lineId: typeof body.lineId === "string" ? body.lineId.trim() : undefined,
+      lineType: body.lineType === "custom-design" ? ("custom-design" as const) : ("product" as const),
+      name: typeof body.name === "string" ? body.name : undefined,
+      price: typeof body.price === "number" && Number.isFinite(body.price) ? body.price : undefined,
+      image: typeof body.image === "string" ? body.image : undefined,
+      previewImage: typeof body.previewImage === "string" ? body.previewImage : undefined,
+      subtitle: typeof body.subtitle === "string" ? body.subtitle : undefined,
+      configurations: body.configurations,
+      designJson: body.designJson
+    });
     return NextResponse.json({ checkoutUrl });
   } catch (error) {
     console.error("[shopify] checkout creation failed:", error);

@@ -7,7 +7,7 @@ export const ORDER_STATUSES = ["draft", "placed", "confirmed", "in_progress", "f
 export const PRODUCTION_STATUSES = ["queued", "proof_needed", "approved", "engraving", "finishing", "ready", "shipped", "cancelled"] as const;
 export const UPLOAD_REVIEW_STATUSES = ["pending_upload", "uploaded", "linked", "approved", "rejected"] as const;
 export const USER_ROLES = ["customer", "admin"] as const;
-export const CHECKOUT_SOURCES = ["web"] as const;
+export const CHECKOUT_SOURCES = ["web", "shopify"] as const;
 
 export const STORAGE_ROOTS = {
   productImages: "products",

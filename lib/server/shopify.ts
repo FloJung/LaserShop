@@ -4,12 +4,30 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getAdminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
 import { updateCashflow } from "@/lib/server/cashflow";
 import { getStoredShopifyAccessToken } from "@/lib/server/shopify-auth";
+import type {
+  CartConfigurationInput,
+  CustomerAddress,
+  OrderDocument,
+  OrderItemConfigurationDocument,
+  OrderItemDocument
+} from "@/shared/catalog";
+import {
+  productDocumentSchema,
+  productOptionDocumentSchema,
+  productOptionValueDocumentSchema,
+  productVariantDocumentSchema
+} from "@/shared/catalog";
 
 const SHOPIFY_SHOP_DOMAIN = "laser-991863.myshopify.com";
 const SHOPIFY_API_VERSION = "2026-01";
 const SHOPIFY_PRODUCTS_URL = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/products.json`;
 const SHOPIFY_PRODUCT_MAPPING_COLLECTION = "shopifyProductMappings";
+const SHOPIFY_CHECKOUT_CONTEXT_COLLECTION = "shopifyCheckoutContexts";
 const SHOPIFY_ORDER_COLLECTION = "shopifyOrders";
+const SHOPIFY_CHECKOUT_CONTEXT_ATTRIBUTE = "ls_checkout_context";
+const SHOPIFY_CHECKOUT_SOURCE_ATTRIBUTE = "ls_checkout_source";
+const SHOPIFY_CHECKOUT_NOTE_PREFIX = "LaserShop checkout context:";
+const MAX_INLINE_PREVIEW_IMAGE_LENGTH = 700_000;
 
 type LocalProductSyncInput = {
   localProductId: string;
@@ -56,14 +74,29 @@ type ShopifyIncomingLineItem = {
   price?: number | string;
 };
 
+type ShopifyNoteAttribute = {
+  name?: string;
+  key?: string;
+  value?: string;
+};
+
 type ShopifyIncomingOrder = {
   id?: number | string;
   name?: string;
   email?: string;
+  note?: string;
+  note_attributes?: ShopifyNoteAttribute[];
   currency?: string;
+  subtotal_price?: number | string;
+  current_subtotal_price?: number | string;
   total_price?: number | string;
+  total_tax?: number | string;
+  current_total_tax?: number | string;
+  total_discounts?: number | string;
+  current_total_discounts?: number | string;
   financial_status?: string;
   fulfillment_status?: string | null;
+  cancelled_at?: string | null;
   created_at?: string;
   updated_at?: string;
   customer?: {
@@ -72,11 +105,158 @@ type ShopifyIncomingOrder = {
     first_name?: string;
     last_name?: string;
   } | null;
+  shipping_address?: {
+    first_name?: string;
+    last_name?: string;
+    company?: string;
+    address1?: string;
+    address2?: string;
+    zip?: string;
+    city?: string;
+    country_code?: string;
+    phone?: string;
+  } | null;
+  billing_address?: {
+    first_name?: string;
+    last_name?: string;
+    company?: string;
+    address1?: string;
+    address2?: string;
+    zip?: string;
+    city?: string;
+    country_code?: string;
+    phone?: string;
+  } | null;
+  shipping_lines?: Array<{
+    price?: number | string;
+  }>;
   line_items?: ShopifyIncomingLineItem[];
 };
 
+type CheckoutContextLineInput = {
+  lineId?: string;
+  lineType?: "product" | "custom-design";
+  productId: string;
+  variantId: string;
+  quantity: number;
+  name?: string;
+  price?: number;
+  image?: string;
+  previewImage?: string;
+  subtitle?: string;
+  configurations?: unknown;
+  designJson?: unknown;
+};
+
+type ResolvedCheckoutContextLine = {
+  lineId: string;
+  lineType: "product" | "custom-design";
+  productId: string;
+  variantId: string;
+  quantity: number;
+  shopifyProductId: string;
+  shopifyVariantId: string;
+  name?: string;
+  price?: number;
+  image?: string;
+  subtitle?: string;
+  previewImage?: string;
+  previewImageStorage: "missing" | "inline" | "omitted_too_large";
+  configurations?: CartConfigurationInput[];
+  customData?: Record<string, unknown>;
+  designJson?: Record<string, unknown>;
+};
+
+type ShopifyCheckoutContextDocument = {
+  source: "buy_now" | "cart";
+  status: "pending" | "matched";
+  lineCount: number;
+  totalQuantity: number;
+  lineTypes: Array<"product" | "custom-design">;
+  hasConfigurations: boolean;
+  hasCustomDesigns: boolean;
+  shopifyLineSignature: string;
+  shopifyNote: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  matchedOrderId?: string;
+  matchedOrderName?: string;
+  matchedAt?: string;
+};
+
+type ShopifyCheckoutContextLineDocument = {
+  lineType: "product" | "custom-design";
+  productId: string;
+  variantId: string;
+  quantity: number;
+  shopifyProductId: string;
+  shopifyVariantId: string;
+  name?: string;
+  price?: number;
+  image?: string;
+  subtitle?: string;
+  previewImage?: string;
+  previewImageStorage: "missing" | "inline" | "omitted_too_large";
+  configurations?: CartConfigurationInput[];
+  customData?: Record<string, unknown>;
+  designJson?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ShopifyCheckoutContextWithLines = ShopifyCheckoutContextDocument & {
+  id: string;
+  lines: Array<
+    ShopifyCheckoutContextLineDocument & {
+      id: string;
+    }
+  >;
+};
+
+type OrderMirrorProductContext = {
+  productId: string;
+  productTitle: string;
+  variantId: string;
+  variantName: string;
+  sku: string;
+  unitPriceCents: number;
+  productionTimeDays: number;
+  options: Array<{
+    id: string;
+    doc: ReturnType<typeof productOptionDocumentSchema.parse>;
+    values: Array<{ id: string; doc: ReturnType<typeof productOptionValueDocumentSchema.parse> }>;
+  }>;
+};
+
+type OrderMirrorResult =
+  | {
+      status: "mirrored" | "already_mirrored";
+      canonicalOrderId: string;
+      canonicalOrderNumber: string;
+    }
+  | {
+      status: "skipped";
+      reason: string;
+    }
+  | {
+      status: "failed";
+      reason: string;
+    };
+
 function nowIso() {
   return new Date().toISOString();
+}
+
+function plusHoursIso(baseIso: string, hours: number) {
+  const base = new Date(baseIso);
+  return new Date(base.getTime() + hours * 60 * 60 * 1000).toISOString();
+}
+
+function plusDaysIso(baseIso: string, days: number) {
+  const base = new Date(baseIso);
+  base.setUTCDate(base.getUTCDate() + days);
+  return base.toISOString();
 }
 
 function getShopifyClientSecret() {
@@ -99,6 +279,130 @@ function getShopifyAccessToken() {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error.";
+}
+
+function normalizeCheckoutQuantity(value: number) {
+  return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+function normalizeUploadReference(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const uploadId = "uploadId" in value && typeof value.uploadId === "string" ? value.uploadId.trim() : "";
+  if (!uploadId) {
+    return undefined;
+  }
+
+  const originalFilename =
+    "originalFilename" in value && typeof value.originalFilename === "string" && value.originalFilename.trim().length > 0
+      ? value.originalFilename.trim()
+      : undefined;
+
+  return {
+    uploadId,
+    ...(originalFilename ? { originalFilename } : {})
+  } satisfies CartConfigurationInput["value"];
+}
+
+function normalizeCartConfigurations(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const configurations = value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+
+    const optionId = "optionId" in entry && typeof entry.optionId === "string" ? entry.optionId.trim() : "";
+    if (!optionId) {
+      return [];
+    }
+
+    const rawValue = "value" in entry ? entry.value : undefined;
+    const normalizedValue =
+      typeof rawValue === "string"
+        ? rawValue
+        : typeof rawValue === "boolean"
+          ? rawValue
+          : normalizeUploadReference(rawValue);
+
+    if (typeof normalizedValue === "undefined") {
+      return [];
+    }
+
+    return [
+      {
+        optionId,
+        value: normalizedValue
+      } satisfies CartConfigurationInput
+    ];
+  });
+
+  return configurations.length > 0 ? configurations : undefined;
+}
+
+function normalizeDesignJson(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function summarizeDesignJson(designJson?: Record<string, unknown>) {
+  if (!designJson) {
+    return undefined;
+  }
+
+  const version = typeof designJson.version === "number" ? designJson.version : undefined;
+  const productId = typeof designJson.productId === "string" ? designJson.productId : undefined;
+  const updatedAt = typeof designJson.updatedAt === "string" ? designJson.updatedAt : undefined;
+  const elements = Array.isArray(designJson.elements) ? designJson.elements : [];
+  const elementTypes = elements
+    .flatMap((element) => {
+      if (!element || typeof element !== "object" || Array.isArray(element)) {
+        return [];
+      }
+
+      return "type" in element && typeof element.type === "string" ? [element.type] : [];
+    })
+    .slice(0, 50);
+
+  const summary = {
+    ...(typeof version === "number" ? { designVersion: version } : {}),
+    ...(productId ? { designProductId: productId } : {}),
+    ...(updatedAt ? { designUpdatedAt: updatedAt } : {}),
+    ...(elements.length > 0 ? { elementCount: elements.length, elementTypes } : {}),
+    ...(elements.some((element) => element && typeof element === "object" && !Array.isArray(element) && "type" in element && element.type === "upload")
+      ? { hasUploads: true }
+      : {})
+  } satisfies Record<string, unknown>;
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function normalizePreviewImageForStorage(value: string | undefined) {
+  if (!value || value.trim().length === 0) {
+    return {
+      previewImage: undefined,
+      previewImageStorage: "missing" as const
+    };
+  }
+
+  if (value.length > MAX_INLINE_PREVIEW_IMAGE_LENGTH) {
+    return {
+      previewImage: undefined,
+      previewImageStorage: "omitted_too_large" as const
+    };
+  }
+
+  return {
+    previewImage: value,
+    previewImageStorage: "inline" as const
+  };
 }
 
 async function parseJsonResponse<T>(response: Response) {
@@ -311,29 +615,172 @@ async function resolveShopifyVariantId(localProductId: string, localVariantId: s
   return String(refreshedVariantId);
 }
 
-export async function createCheckoutSession(productId: string, variantId: string, quantity: number) {
-  const safeQuantity = Number.isInteger(quantity) && quantity > 0 ? quantity : 1;
-  const shopifyVariantId = await resolveShopifyVariantId(productId, variantId);
-  return `https://${SHOPIFY_SHOP_DOMAIN}/cart/${shopifyVariantId}:${safeQuantity}`;
+async function resolveShopifyCheckoutLine(line: CheckoutContextLineInput): Promise<ResolvedCheckoutContextLine> {
+  const mapping = await getShopifyProductMapping(line.productId);
+  if (!mapping?.shopifyProductId) {
+    throw new Error(`No Shopify product mapping found for local product ${line.productId}.`);
+  }
+
+  const shopifyVariantId = await resolveShopifyVariantId(line.productId, line.variantId);
+  const normalizedDesignJson = normalizeDesignJson(line.designJson);
+  const { previewImage, previewImageStorage } = normalizePreviewImageForStorage(line.previewImage);
+  const normalizedConfigurations = normalizeCartConfigurations(line.configurations);
+  const summarizedDesignJson = summarizeDesignJson(normalizedDesignJson);
+
+  return {
+    lineId: line.lineId?.trim() || `${line.productId}:${line.variantId}`,
+    lineType: line.lineType === "custom-design" ? "custom-design" : "product",
+    productId: line.productId,
+    variantId: line.variantId,
+    quantity: normalizeCheckoutQuantity(line.quantity),
+    shopifyProductId: mapping.shopifyProductId,
+    shopifyVariantId,
+    ...(line.name ? { name: line.name } : {}),
+    ...(typeof line.price === "number" && Number.isFinite(line.price) ? { price: line.price } : {}),
+    ...(line.image ? { image: line.image } : {}),
+    ...(line.subtitle ? { subtitle: line.subtitle } : {}),
+    ...(previewImage ? { previewImage } : {}),
+    previewImageStorage,
+    ...(normalizedConfigurations ? { configurations: normalizedConfigurations } : {}),
+    ...(summarizedDesignJson ? { customData: summarizedDesignJson } : {}),
+    ...(normalizedDesignJson ? { designJson: normalizedDesignJson } : {})
+  };
 }
 
-export async function createCartCheckoutSession(
-  lines: Array<{ productId: string; variantId: string; quantity: number }>
-) {
-  if (lines.length === 0) {
+function buildShopifyLineSignature(lines: Array<Pick<ResolvedCheckoutContextLine, "shopifyVariantId" | "quantity">>) {
+  return lines
+    .map((line) => `${line.shopifyVariantId}:${line.quantity}`)
+    .sort()
+    .join("|");
+}
+
+function buildCheckoutContextNote(contextId: string) {
+  return `${SHOPIFY_CHECKOUT_NOTE_PREFIX} ${contextId}`;
+}
+
+function appendCheckoutContextToCartUrl(baseUrl: string, contextId: string) {
+  const url = new URL(baseUrl);
+  url.searchParams.set(`attributes[${SHOPIFY_CHECKOUT_CONTEXT_ATTRIBUTE}]`, contextId);
+  url.searchParams.set(`attributes[${SHOPIFY_CHECKOUT_SOURCE_ATTRIBUTE}]`, "laser-shop");
+  url.searchParams.set("note", buildCheckoutContextNote(contextId));
+  url.searchParams.set("ref", contextId);
+  return url.toString();
+}
+
+async function createPendingCheckoutContext(input: {
+  source: "buy_now" | "cart";
+  lines: ResolvedCheckoutContextLine[];
+}) {
+  if (!isFirebaseAdminConfigured()) {
+    throw new Error("Firebase admin is required to persist the Shopify checkout context.");
+  }
+
+  const db = getAdminDb();
+  const timestamp = nowIso();
+  const contextRef = db.collection(SHOPIFY_CHECKOUT_CONTEXT_COLLECTION).doc();
+  const contextId = contextRef.id;
+  const batch = db.batch();
+  const checkoutContextDoc: ShopifyCheckoutContextDocument = {
+    source: input.source,
+    status: "pending",
+    lineCount: input.lines.length,
+    totalQuantity: input.lines.reduce((sum, line) => sum + line.quantity, 0),
+    lineTypes: Array.from(new Set(input.lines.map((line) => line.lineType))),
+    hasConfigurations: input.lines.some((line) => Boolean(line.configurations?.length)),
+    hasCustomDesigns: input.lines.some((line) => line.lineType === "custom-design" || Boolean(line.designJson)),
+    shopifyLineSignature: buildShopifyLineSignature(input.lines),
+    shopifyNote: buildCheckoutContextNote(contextId),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    expiresAt: plusHoursIso(timestamp, 72)
+  };
+
+  batch.set(contextRef, checkoutContextDoc);
+
+  for (const line of input.lines) {
+    const lineRef = contextRef.collection("lines").doc(line.lineId);
+    const lineDoc: ShopifyCheckoutContextLineDocument = {
+      lineType: line.lineType,
+      productId: line.productId,
+      variantId: line.variantId,
+      quantity: line.quantity,
+      shopifyProductId: line.shopifyProductId,
+      shopifyVariantId: line.shopifyVariantId,
+      ...(line.name ? { name: line.name } : {}),
+      ...(typeof line.price === "number" ? { price: line.price } : {}),
+      ...(line.image ? { image: line.image } : {}),
+      ...(line.subtitle ? { subtitle: line.subtitle } : {}),
+      ...(line.previewImage ? { previewImage: line.previewImage } : {}),
+      previewImageStorage: line.previewImageStorage,
+      ...(line.configurations?.length ? { configurations: line.configurations } : {}),
+      ...(line.customData ? { customData: line.customData } : {}),
+      ...(line.designJson ? { designJson: line.designJson } : {}),
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+
+    batch.set(lineRef, lineDoc);
+  }
+
+  await batch.commit();
+
+  return { contextId };
+}
+
+async function createShopifyCheckoutWithContext(input: {
+  source: "buy_now" | "cart";
+  lines: CheckoutContextLineInput[];
+}) {
+  if (input.lines.length === 0) {
     throw new Error("Cannot create Shopify checkout for an empty cart.");
   }
 
-  const resolvedLines = await Promise.all(
-    lines.map(async (line) => {
-      const quantity = Number.isInteger(line.quantity) && line.quantity > 0 ? line.quantity : 1;
-      const shopifyVariantId = await resolveShopifyVariantId(line.productId, line.variantId);
+  const resolvedLines = await Promise.all(input.lines.map(resolveShopifyCheckoutLine));
+  const { contextId } = await createPendingCheckoutContext({
+    source: input.source,
+    lines: resolvedLines
+  });
+  const baseUrl = `https://${SHOPIFY_SHOP_DOMAIN}/cart/${resolvedLines
+    .map((line) => `${line.shopifyVariantId}:${line.quantity}`)
+    .join(",")}`;
 
-      return `${shopifyVariantId}:${quantity}`;
-    })
-  );
+  return {
+    checkoutUrl: appendCheckoutContextToCartUrl(baseUrl, contextId),
+    checkoutContextId: contextId
+  };
+}
 
-  return `https://${SHOPIFY_SHOP_DOMAIN}/cart/${resolvedLines.join(",")}`;
+export async function createCheckoutSession(
+  productId: string,
+  variantId: string,
+  quantity: number,
+  contextLine?: Partial<Omit<CheckoutContextLineInput, "productId" | "variantId" | "quantity">>
+) {
+  const result = await createShopifyCheckoutWithContext({
+    source: "buy_now",
+    lines: [
+      {
+        productId,
+        variantId,
+        quantity,
+        ...(contextLine?.lineId ? { lineId: contextLine.lineId } : {}),
+        ...(contextLine?.lineType ? { lineType: contextLine.lineType } : {}),
+        ...(contextLine?.name ? { name: contextLine.name } : {}),
+        ...(typeof contextLine?.price === "number" ? { price: contextLine.price } : {}),
+        ...(contextLine?.image ? { image: contextLine.image } : {}),
+        ...(contextLine?.previewImage ? { previewImage: contextLine.previewImage } : {}),
+        ...(contextLine?.subtitle ? { subtitle: contextLine.subtitle } : {}),
+        ...(typeof contextLine?.configurations !== "undefined" ? { configurations: contextLine.configurations } : {}),
+        ...(typeof contextLine?.designJson !== "undefined" ? { designJson: contextLine.designJson } : {})
+      }
+    ]
+  });
+
+  return result.checkoutUrl;
+}
+
+export async function createCartCheckoutSession(lines: CheckoutContextLineInput[]) {
+  return (await createShopifyCheckoutWithContext({ source: "cart", lines })).checkoutUrl;
 }
 
 export function verifyShopifyWebhookHmac(rawBody: string, providedHmac: string | null) {
@@ -367,6 +814,541 @@ function normalizeNumber(value: unknown) {
   }
 
   return undefined;
+}
+
+function toCents(value: unknown) {
+  const amount = normalizeNumber(value);
+  return typeof amount === "number" ? Math.round(amount * 100) : undefined;
+}
+
+function sanitizeFirestoreIdSegment(value: string) {
+  return value.replace(/\//g, "_").slice(0, 180);
+}
+
+function sanitizeMirroredPreviewUrl(previewUrl?: string) {
+  if (!previewUrl || previewUrl.startsWith("data:") || previewUrl.length > 2_000) {
+    return undefined;
+  }
+
+  return previewUrl;
+}
+
+function normalizeNoteAttributes(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+
+    const name =
+      ("name" in entry && typeof entry.name === "string" && entry.name.trim().length > 0
+        ? entry.name.trim()
+        : "key" in entry && typeof entry.key === "string" && entry.key.trim().length > 0
+          ? entry.key.trim()
+          : undefined);
+    const attributeValue = "value" in entry && typeof entry.value === "string" ? entry.value.trim() : undefined;
+
+    if (!name || !attributeValue) {
+      return [];
+    }
+
+    return [{ name, value: attributeValue }];
+  });
+}
+
+function extractCheckoutContextIdFromNote(note?: string) {
+  if (!note) {
+    return undefined;
+  }
+
+  if (!note.startsWith(SHOPIFY_CHECKOUT_NOTE_PREFIX)) {
+    return undefined;
+  }
+
+  const suffix = note.slice(SHOPIFY_CHECKOUT_NOTE_PREFIX.length).trim();
+  return suffix || undefined;
+}
+
+async function getCheckoutContextSummary(contextId: string) {
+  const snapshot = await getAdminDb().collection(SHOPIFY_CHECKOUT_CONTEXT_COLLECTION).doc(contextId).get();
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    ...(snapshot.data() as ShopifyCheckoutContextDocument)
+  };
+}
+
+async function getCheckoutContextWithLines(contextId: string): Promise<ShopifyCheckoutContextWithLines | null> {
+  const contextRef = getAdminDb().collection(SHOPIFY_CHECKOUT_CONTEXT_COLLECTION).doc(contextId);
+  const [contextSnapshot, linesSnapshot] = await Promise.all([
+    contextRef.get(),
+    contextRef.collection("lines").orderBy("createdAt", "asc").get()
+  ]);
+
+  if (!contextSnapshot.exists) {
+    return null;
+  }
+
+  return {
+    id: contextSnapshot.id,
+    ...(contextSnapshot.data() as ShopifyCheckoutContextDocument),
+    lines: linesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as ShopifyCheckoutContextLineDocument)
+    }))
+  };
+}
+
+async function markCheckoutContextMatched(contextId: string, input: { orderId: string; orderName?: string }) {
+  await getAdminDb()
+    .collection(SHOPIFY_CHECKOUT_CONTEXT_COLLECTION)
+    .doc(contextId)
+    .set(
+      {
+        status: "matched",
+        matchedOrderId: input.orderId,
+        ...(input.orderName ? { matchedOrderName: input.orderName } : {}),
+        matchedAt: nowIso(),
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+}
+
+async function resolveCheckoutContextForOrder(orderData: ShopifyIncomingOrder, lineItems: Array<{ variantId: string; quantity: number }>) {
+  const noteAttributes = normalizeNoteAttributes(orderData.note_attributes);
+  const directContextId =
+    noteAttributes.find((attribute) => attribute.name === SHOPIFY_CHECKOUT_CONTEXT_ATTRIBUTE)?.value ??
+    extractCheckoutContextIdFromNote(normalizeString(orderData.note));
+
+  if (directContextId) {
+    const directContext = await getCheckoutContextSummary(directContextId);
+    if (directContext) {
+      return {
+        context: directContext,
+        matchStrategy: "direct"
+      } as const;
+    }
+  }
+
+  const signature = buildShopifyLineSignature(
+    lineItems
+      .filter((line) => line.variantId)
+      .map((line) => ({
+        shopifyVariantId: line.variantId,
+        quantity: line.quantity
+      }))
+  );
+  if (!signature) {
+    return {
+      context: null,
+      matchStrategy: "missing"
+    } as const;
+  }
+
+  const matchingSnapshots = await getAdminDb()
+    .collection(SHOPIFY_CHECKOUT_CONTEXT_COLLECTION)
+    .where("shopifyLineSignature", "==", signature)
+    .limit(10)
+    .get();
+
+  const candidates = matchingSnapshots.docs
+    .map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as ShopifyCheckoutContextDocument)
+    }))
+    .filter((context) => context.status === "pending")
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
+  if (candidates.length === 1) {
+    return {
+      context: candidates[0],
+      matchStrategy: "signature_fallback"
+    } as const;
+  }
+
+  return {
+    context: null,
+    matchStrategy: candidates.length > 1 ? "ambiguous_signature" : "missing"
+  } as const;
+}
+
+async function getOrderMirrorProductContext(
+  productId: string,
+  variantId: string,
+  cache: Map<string, Promise<OrderMirrorProductContext>>
+) {
+  const cacheKey = `${productId}:${variantId}`;
+  if (!cache.has(cacheKey)) {
+    cache.set(
+      cacheKey,
+      (async () => {
+        const productRef = getAdminDb().collection("products").doc(productId);
+        const [productSnapshot, variantSnapshot, optionSnapshot] = await Promise.all([
+          productRef.get(),
+          productRef.collection("variants").doc(variantId).get(),
+          productRef.collection("options").get()
+        ]);
+
+        if (!productSnapshot.exists) {
+          throw new Error(`Mirror failed: unknown product ${productId}.`);
+        }
+
+        if (!variantSnapshot.exists) {
+          throw new Error(`Mirror failed: unknown variant ${variantId} for product ${productId}.`);
+        }
+
+        const productDoc = productDocumentSchema.parse(productSnapshot.data());
+        const variantDoc = productVariantDocumentSchema.parse(variantSnapshot.data());
+        const options = await Promise.all(
+          optionSnapshot.docs.map(async (optionDoc) => {
+            const option = productOptionDocumentSchema.parse(optionDoc.data());
+            const valuesSnapshot = await optionDoc.ref.collection("values").get();
+
+            return {
+              id: optionDoc.id,
+              doc: option,
+              values: valuesSnapshot.docs.map((valueDoc) => ({
+                id: valueDoc.id,
+                doc: productOptionValueDocumentSchema.parse(valueDoc.data())
+              }))
+            };
+          })
+        );
+
+        return {
+          productId,
+          productTitle: productDoc.title,
+          variantId,
+          variantName: variantDoc.name,
+          sku: variantDoc.sku,
+          unitPriceCents: variantDoc.priceCents,
+          productionTimeDays: variantDoc.productionTimeDays,
+          options: options.filter((entry) => entry.doc.isActive).sort((left, right) => left.doc.sortOrder - right.doc.sortOrder)
+        } satisfies OrderMirrorProductContext;
+      })()
+    );
+  }
+
+  return cache.get(cacheKey)!;
+}
+
+function getConfigurationPriceModifier(
+  option: OrderMirrorProductContext["options"][number]["doc"],
+  value: CartConfigurationInput["value"],
+  optionValues: OrderMirrorProductContext["options"][number]["values"]
+) {
+  const baseModifier = option.priceModifierCents ?? 0;
+
+  if (option.type === "checkbox") {
+    return value === true && option.pricingMode === "fixed" ? baseModifier : 0;
+  }
+
+  if (option.type === "select") {
+    const selectedValue = typeof value === "string" ? optionValues.find((entry) => entry.doc.value === value && entry.doc.isActive) : undefined;
+    return (option.pricingMode === "fixed" ? baseModifier : 0) + (selectedValue?.doc.priceModifierCents ?? 0);
+  }
+
+  if (option.type === "text" || option.type === "textarea") {
+    if (typeof value !== "string") {
+      return 0;
+    }
+
+    if (option.pricingMode === "per_character") {
+      return baseModifier * value.length;
+    }
+
+    return option.pricingMode === "fixed" ? baseModifier : 0;
+  }
+
+  return option.pricingMode === "fixed" ? baseModifier : 0;
+}
+
+function getRenderedConfigurationValue(
+  option: OrderMirrorProductContext["options"][number]["doc"],
+  value: CartConfigurationInput["value"],
+  optionValues: OrderMirrorProductContext["options"][number]["values"]
+) {
+  if (option.type === "checkbox") {
+    return value === true ? "Ja" : "Nein";
+  }
+
+  if (option.type === "select") {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    return optionValues.find((entry) => entry.doc.value === value && entry.doc.isActive)?.doc.label ?? value;
+  }
+
+  if (option.type === "file") {
+    if (value && typeof value === "object" && !Array.isArray(value) && "originalFilename" in value && typeof value.originalFilename === "string") {
+      return value.originalFilename;
+    }
+
+    return value && typeof value === "object" && !Array.isArray(value) && "uploadId" in value && typeof value.uploadId === "string"
+      ? value.uploadId
+      : "";
+  }
+
+  return typeof value === "string" ? value : "";
+}
+
+function mapFinancialStatusToPaymentStatus(financialStatus?: string): OrderDocument["paymentStatus"] {
+  switch (financialStatus) {
+    case "authorized":
+      return "authorized";
+    case "paid":
+      return "paid";
+    case "partially_refunded":
+      return "partially_refunded";
+    case "refunded":
+      return "refunded";
+    case "voided":
+      return "failed";
+    case "pending":
+    case "partially_paid":
+    default:
+      return "pending";
+  }
+}
+
+function deriveOrderStatus(input: {
+  cancelledAt?: string | null;
+  fulfillmentStatus?: string | null;
+  paymentStatus: OrderDocument["paymentStatus"];
+}): OrderDocument["orderStatus"] {
+  if (input.cancelledAt || input.paymentStatus === "failed") {
+    return "cancelled";
+  }
+
+  if (input.fulfillmentStatus === "fulfilled") {
+    return "fulfilled";
+  }
+
+  return "placed";
+}
+
+function deriveProductionStatus(input: {
+  cancelledAt?: string | null;
+  fulfillmentStatus?: string | null;
+}): OrderDocument["productionStatus"] {
+  if (input.cancelledAt) {
+    return "cancelled";
+  }
+
+  if (input.fulfillmentStatus === "fulfilled") {
+    return "shipped";
+  }
+
+  return "queued";
+}
+
+function normalizeShopifyAddress(
+  address: ShopifyIncomingOrder["shipping_address"] | ShopifyIncomingOrder["billing_address"] | undefined | null,
+  fallback: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+  }
+): CustomerAddress | null {
+  if (!address) {
+    return null;
+  }
+
+  const firstName = normalizeString(address.first_name) ?? fallback.firstName;
+  const lastName = normalizeString(address.last_name) ?? fallback.lastName;
+  const line1 = normalizeString(address.address1);
+  const postalCode = normalizeString(address.zip);
+  const city = normalizeString(address.city);
+  const countryCode = normalizeString(address.country_code);
+
+  if (!firstName || !lastName || !line1 || !postalCode || !city || !countryCode || countryCode.length !== 2) {
+    return null;
+  }
+
+  return {
+    firstName,
+    lastName,
+    line1,
+    postalCode,
+    city,
+    countryCode: countryCode.toUpperCase(),
+    ...(normalizeString(address.company) ? { company: normalizeString(address.company) } : {}),
+    ...(normalizeString(address.address2) ? { line2: normalizeString(address.address2) } : {}),
+    ...(normalizeString(address.phone) ?? fallback.phone ? { phone: normalizeString(address.phone) ?? fallback.phone } : {})
+  };
+}
+
+async function mirrorShopifyOrderToCanonicalOrders(input: {
+  shopifyOrderId: string;
+  orderData: ShopifyIncomingOrder;
+  checkoutContext: ShopifyCheckoutContextWithLines | null;
+  customer: {
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+  };
+}): Promise<OrderMirrorResult> {
+  if (!input.checkoutContext) {
+    return {
+      status: "skipped",
+      reason: "No checkout context matched the Shopify order."
+    };
+  }
+
+  if (!input.customer.email || !input.customer.firstName || !input.customer.lastName) {
+    return {
+      status: "skipped",
+      reason: "Customer identity is incomplete for canonical order mirroring."
+    };
+  }
+
+  const shippingAddress =
+    normalizeShopifyAddress(input.orderData.shipping_address, input.customer) ??
+    normalizeShopifyAddress(input.orderData.billing_address, input.customer);
+
+  if (!shippingAddress) {
+    return {
+      status: "skipped",
+      reason: "Shipping address is missing or incomplete for canonical order mirroring."
+    };
+  }
+
+  const billingAddress = normalizeShopifyAddress(input.orderData.billing_address, input.customer) ?? undefined;
+  const orderDocId = `shopify-${sanitizeFirestoreIdSegment(input.shopifyOrderId)}`;
+  const orderRef = getAdminDb().collection("orders").doc(orderDocId);
+  const existingOrder = await orderRef.get();
+  const existedBefore = existingOrder.exists;
+
+  const productCache = new Map<string, Promise<OrderMirrorProductContext>>();
+  const mirroredLines = await Promise.all(
+    input.checkoutContext.lines.map(async (line, index) => {
+      const productContext = await getOrderMirrorProductContext(line.productId, line.variantId, productCache);
+      const configurations: Array<OrderItemConfigurationDocument & { id: string }> = [];
+
+      for (const [configIndex, configuration] of (line.configurations ?? []).entries()) {
+        const optionEntry = productContext.options.find((entry) => entry.id === configuration.optionId);
+        if (!optionEntry) {
+          throw new Error(`Mirror failed: unknown option ${configuration.optionId} for product ${line.productId}.`);
+        }
+
+        configurations.push({
+          id: `cfg-${configIndex + 1}-${sanitizeFirestoreIdSegment(configuration.optionId)}`,
+          optionId: configuration.optionId,
+          optionCodeSnapshot: optionEntry.doc.code,
+          optionNameSnapshot: optionEntry.doc.name,
+          optionTypeSnapshot: optionEntry.doc.type,
+          value: configuration.value,
+          renderedValue: getRenderedConfigurationValue(optionEntry.doc, configuration.value, optionEntry.values),
+          priceModifierSnapshotCents: getConfigurationPriceModifier(optionEntry.doc, configuration.value, optionEntry.values),
+          ...(configuration.value && typeof configuration.value === "object" && !Array.isArray(configuration.value) && "uploadId" in configuration.value
+            ? { uploadId: typeof configuration.value.uploadId === "string" ? configuration.value.uploadId : undefined }
+            : {}),
+          createdAt: normalizeString(input.orderData.created_at) ?? nowIso()
+        });
+      }
+
+      const configurationTotalPerUnit = configurations.reduce((sum, configuration) => sum + configuration.priceModifierSnapshotCents, 0);
+      const lineSubtotalCents = productContext.unitPriceCents * line.quantity;
+      const lineTotalCents = (productContext.unitPriceCents + configurationTotalPerUnit) * line.quantity;
+
+      return {
+        id: `item-${index + 1}-${sanitizeFirestoreIdSegment(line.id)}`,
+        item: {
+          productId: line.productId,
+          variantId: line.variantId,
+          skuSnapshot: productContext.sku,
+          productTitleSnapshot: productContext.productTitle,
+          variantNameSnapshot: productContext.variantName,
+          unitPriceSnapshotCents: productContext.unitPriceCents,
+          quantity: line.quantity,
+          lineSubtotalCents,
+          lineTotalCents,
+          isPersonalized: Boolean(configurations.length > 0 || line.customData),
+          ...(sanitizeMirroredPreviewUrl(line.previewImage) ? { designPreviewUrl: sanitizeMirroredPreviewUrl(line.previewImage) } : {}),
+          ...(line.customData ? { customData: line.customData } : {}),
+          createdAt: normalizeString(input.orderData.created_at) ?? nowIso()
+        } satisfies OrderItemDocument,
+        configurations,
+        productionTimeDays: productContext.productionTimeDays
+      };
+    })
+  );
+
+  const createdAt = normalizeString(input.orderData.created_at) ?? nowIso();
+  const subtotalCents =
+    toCents(input.orderData.current_subtotal_price) ??
+    toCents(input.orderData.subtotal_price) ??
+    mirroredLines.reduce((sum, line) => sum + line.item.lineTotalCents, 0);
+  const shippingTotalCents =
+    Array.isArray(input.orderData.shipping_lines) && input.orderData.shipping_lines.length > 0
+      ? input.orderData.shipping_lines.reduce((sum, line) => sum + (toCents(line.price) ?? 0), 0)
+      : 0;
+  const taxTotalCents = toCents(input.orderData.current_total_tax) ?? toCents(input.orderData.total_tax) ?? 0;
+  const discountTotalCents = toCents(input.orderData.current_total_discounts) ?? toCents(input.orderData.total_discounts) ?? 0;
+  const grandTotalCents =
+    toCents(input.orderData.total_price) ??
+    Math.max(subtotalCents + shippingTotalCents + taxTotalCents - discountTotalCents, 0);
+  const paymentStatus = mapFinancialStatusToPaymentStatus(normalizeString(input.orderData.financial_status));
+  const orderStatus = deriveOrderStatus({
+    cancelledAt: input.orderData.cancelled_at,
+    fulfillmentStatus: normalizeString(input.orderData.fulfillment_status),
+    paymentStatus
+  });
+  const productionStatus = deriveProductionStatus({
+    cancelledAt: input.orderData.cancelled_at,
+    fulfillmentStatus: normalizeString(input.orderData.fulfillment_status)
+  });
+  const maxProductionTimeDays = Math.max(...mirroredLines.map((line) => line.productionTimeDays), 0);
+  const orderNumber = normalizeString(input.orderData.name) ?? `SHOPIFY-${input.shopifyOrderId}`;
+  const orderDoc: OrderDocument = {
+    orderNumber,
+    customerEmail: input.customer.email,
+    customerFirstName: input.customer.firstName,
+    customerLastName: input.customer.lastName,
+    source: "shopify",
+    currency: "EUR",
+    subtotalCents,
+    shippingTotalCents,
+    taxTotalCents,
+    discountTotalCents,
+    grandTotalCents,
+    paymentStatus,
+    orderStatus,
+    productionStatus,
+    productionDueDate: plusDaysIso(createdAt, maxProductionTimeDays),
+    shippingAddress,
+    ...(billingAddress ? { billingAddress } : {}),
+    notesInternal: `Mirrored from Shopify order ${input.shopifyOrderId} via checkout context ${input.checkoutContext.id}.`,
+    itemCount: mirroredLines.reduce((sum, line) => sum + line.item.quantity, 0),
+    maxProductionTimeDays,
+    createdAt,
+    updatedAt: nowIso()
+  };
+
+  await orderRef.set(orderDoc, { merge: false });
+
+  for (const mirroredLine of mirroredLines) {
+    const itemRef = orderRef.collection("items").doc(mirroredLine.id);
+    await itemRef.set(mirroredLine.item, { merge: false });
+
+    for (const configuration of mirroredLine.configurations) {
+      await itemRef.collection("configurations").doc(configuration.id).set(configuration, { merge: false });
+    }
+  }
+
+  return {
+    status: existedBefore ? "already_mirrored" : "mirrored",
+    canonicalOrderId: orderRef.id,
+    canonicalOrderNumber: orderNumber
+  };
 }
 
 export async function handleIncomingOrder(orderData: ShopifyIncomingOrder) {
@@ -409,6 +1391,45 @@ export async function handleIncomingOrder(orderData: ShopifyIncomingOrder) {
         email: normalizeString(orderData.email)
       };
 
+  const checkoutContextMatch = await resolveCheckoutContextForOrder(orderData, lineItems);
+  const checkoutContext = checkoutContextMatch.context
+    ? await getCheckoutContextWithLines(checkoutContextMatch.context.id)
+    : null;
+  if (checkoutContextMatch.context) {
+    await markCheckoutContextMatched(checkoutContextMatch.context.id, {
+      orderId,
+      orderName: normalizeString(orderData.name)
+    });
+  }
+
+  let orderMirrorResult: OrderMirrorResult = {
+    status: "skipped",
+    reason: "Canonical mirror was not attempted."
+  };
+
+  try {
+    orderMirrorResult = await mirrorShopifyOrderToCanonicalOrders({
+      shopifyOrderId: orderId,
+      orderData,
+      checkoutContext,
+      customer: {
+        email: customer.email,
+        firstName: customer.firstName,
+        lastName: customer.lastName
+      }
+    });
+  } catch (error) {
+    orderMirrorResult = {
+      status: "failed",
+      reason: getErrorMessage(error)
+    };
+    console.error("[shopify] canonical order mirror failed:", {
+      shopifyOrderId: orderId,
+      checkoutContextId: checkoutContext?.id ?? null,
+      error
+    });
+  }
+
   await getAdminDb()
     .collection(SHOPIFY_ORDER_COLLECTION)
     .doc(orderId)
@@ -424,6 +1445,31 @@ export async function handleIncomingOrder(orderData: ShopifyIncomingOrder) {
         fulfillmentStatus: normalizeString(orderData.fulfillment_status),
         lineItems,
         customer,
+        note: normalizeString(orderData.note),
+        noteAttributes: normalizeNoteAttributes(orderData.note_attributes),
+        checkoutContextId: checkoutContextMatch.context?.id,
+        checkoutContextPath: checkoutContextMatch.context
+          ? `${SHOPIFY_CHECKOUT_CONTEXT_COLLECTION}/${checkoutContextMatch.context.id}`
+          : undefined,
+        checkoutContextMatchStrategy: checkoutContextMatch.matchStrategy,
+        checkoutContextSummary: checkoutContextMatch.context
+          ? {
+              source: checkoutContextMatch.context.source,
+              status: checkoutContextMatch.context.status,
+              lineCount: checkoutContextMatch.context.lineCount,
+              totalQuantity: checkoutContextMatch.context.totalQuantity,
+              lineTypes: checkoutContextMatch.context.lineTypes,
+              hasConfigurations: checkoutContextMatch.context.hasConfigurations,
+              hasCustomDesigns: checkoutContextMatch.context.hasCustomDesigns
+            }
+          : undefined,
+        canonicalMirrorStatus: orderMirrorResult.status,
+        canonicalMirrorReason: "reason" in orderMirrorResult ? orderMirrorResult.reason : undefined,
+        canonicalOrderId: "canonicalOrderId" in orderMirrorResult ? orderMirrorResult.canonicalOrderId : undefined,
+        canonicalOrderPath:
+          "canonicalOrderId" in orderMirrorResult ? `orders/${orderMirrorResult.canonicalOrderId}` : undefined,
+        canonicalOrderNumber:
+          "canonicalOrderNumber" in orderMirrorResult ? orderMirrorResult.canonicalOrderNumber : undefined,
         shopifyCreatedAt: normalizeString(orderData.created_at),
         shopifyUpdatedAt: normalizeString(orderData.updated_at),
         receivedAt: timestamp,
@@ -453,7 +1499,9 @@ export async function handleIncomingOrder(orderData: ShopifyIncomingOrder) {
   return {
     orderId,
     totalPrice: normalizeNumber(orderData.total_price) ?? 0,
-    lineItemCount: lineItems.length
+    lineItemCount: lineItems.length,
+    checkoutContextId: checkoutContextMatch.context?.id ?? null,
+    canonicalMirrorStatus: orderMirrorResult.status
   };
 }
 
