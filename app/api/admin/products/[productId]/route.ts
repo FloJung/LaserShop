@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getAdminEditableProduct } from "@/lib/server/admin-products";
 import { getCurrentSession } from "@/lib/server/admin-session";
+import { syncProductToShopify } from "@/lib/server/shopify";
 import { editableProductPayloadSchema } from "@/shared/catalog";
 import { isAdminRole } from "@/shared/firebase/roles";
 
@@ -16,11 +17,28 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function getShopifySyncPayload(productId: string, payload: ReturnType<typeof normalizePayload>) {
+  const preferredVariant =
+    payload.variants.find((variant) => variant.id === payload.defaultVariantId) ??
+    payload.variants.find((variant) => variant.isActive) ??
+    payload.variants[0];
+
+  return {
+    localProductId: productId,
+    localVariantId: preferredVariant?.id,
+    title: payload.title,
+    description: payload.longDescription || payload.shortDescription,
+    price: (preferredVariant?.priceCents ?? 0) / 100,
+    sku: preferredVariant?.sku,
+    status: payload.status
+  } as const;
+}
+
 function uniqueById<T extends { id: string }>(items: T[], label: string) {
   const seen = new Set<string>();
   for (const item of items) {
     if (seen.has(item.id)) {
-      throw new Error(`${label} enthält doppelte IDs: ${item.id}`);
+      throw new Error(`${label} enthaelt doppelte IDs: ${item.id}`);
     }
 
     seen.add(item.id);
@@ -35,9 +53,9 @@ function normalizePayload(input: unknown) {
   uniqueById(parsed.options, "Optionen");
 
   for (const option of parsed.options) {
-    uniqueById(option.values, `Optionswerte für ${option.name}`);
+    uniqueById(option.values, `Optionswerte fuer ${option.name}`);
     if (option.type === "select" && option.values.length === 0) {
-      throw new Error(`Die Select-Option "${option.name}" benötigt mindestens einen Wert.`);
+      throw new Error(`Die Select-Option "${option.name}" benoetigt mindestens einen Wert.`);
     }
   }
 
@@ -46,8 +64,7 @@ function normalizePayload(input: unknown) {
     sortOrder: index
   }));
 
-  const primaryImageId =
-    normalizedImages.find((image) => image.isPrimary)?.id ?? normalizedImages[0]?.id;
+  const primaryImageId = normalizedImages.find((image) => image.isPrimary)?.id ?? normalizedImages[0]?.id;
 
   const images = normalizedImages.map((image) => ({
     ...image,
@@ -283,6 +300,12 @@ export async function PUT(request: Request, context: { params: Promise<{ product
   }
 
   await batch.commit();
+
+  try {
+    await syncProductToShopify(getShopifySyncPayload(productId, payload));
+  } catch (error) {
+    console.error("[shopify] product sync after update failed:", error);
+  }
 
   return NextResponse.json({
     success: true,

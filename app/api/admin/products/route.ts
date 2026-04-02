@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentSession } from "@/lib/server/admin-session";
+import { syncProductToShopify } from "@/lib/server/shopify";
 import { isAdminRole } from "@/shared/firebase/roles";
 
 function nowIso() {
@@ -29,33 +30,30 @@ export async function POST() {
   const timestamp = nowIso();
   const productRef = getAdminDb().collection("products").doc();
   const defaultVariantId = "default";
-
-  const batch = getAdminDb().batch();
-  batch.set(productRef, {
+  const productDoc = {
     title: "Neues Produkt",
     slug: `produkt-${productRef.id.slice(0, 8)}`,
     shortDescription: "Neue Kurzbeschreibung",
-    longDescription: "Neue ausführliche Beschreibung",
+    longDescription: "Neue ausfuehrliche Beschreibung",
     category: "lasergravur",
     shopCategory: "alle-glaeser",
-    glassType: "Sektgläser",
+    glassType: "Sektglaeser",
     collection: "Flo's Designs",
     collectionSlug: "flo",
     designer: "Flo",
     occasion: "Geburtstag",
     featured: false,
-    care: "Pflegehinweis ergänzen",
-    benefits: ["Benefit ergänzen"],
+    care: "Pflegehinweis ergaenzen",
+    benefits: ["Benefit ergaenzen"],
     rating: 5,
     reviews: 0,
-    status: "draft",
+    status: "draft" as const,
     isPersonalizable: true,
     defaultVariantId,
     createdAt: timestamp,
     updatedAt: timestamp
-  });
-
-  batch.set(productRef.collection("variants").doc(defaultVariantId), {
+  };
+  const defaultVariantDoc = {
     sku: `SKU-${productRef.id.slice(0, 8).toUpperCase()}`,
     name: "Standard",
     priceCents: 0,
@@ -66,9 +64,27 @@ export async function POST() {
     sortOrder: 0,
     createdAt: timestamp,
     updatedAt: timestamp
-  });
+  };
+
+  const batch = getAdminDb().batch();
+  batch.set(productRef, productDoc);
+  batch.set(productRef.collection("variants").doc(defaultVariantId), defaultVariantDoc);
 
   await batch.commit();
+
+  try {
+    await syncProductToShopify({
+      localProductId: productRef.id,
+      localVariantId: defaultVariantId,
+      title: productDoc.title,
+      description: productDoc.longDescription,
+      price: defaultVariantDoc.priceCents / 100,
+      sku: defaultVariantDoc.sku,
+      status: productDoc.status
+    });
+  } catch (error) {
+    console.error("[shopify] product sync after create failed:", error);
+  }
 
   return NextResponse.json({
     success: true,

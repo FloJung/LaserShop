@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/button";
+import { CartCheckoutButton } from "@/components/cart-checkout-button";
 import { useCart } from "@/components/cart-provider";
 import { getSafeCartItemImage } from "@/lib/cart";
 import { formatPrice } from "@/lib/money";
@@ -41,6 +42,7 @@ export function CartPage() {
       <div className="space-y-4">
         {items.map((item) => {
           const safeImage = getSafeCartItemImage(item);
+          const lineTotal = item.price * item.quantity;
 
           return (
             <article key={item.id} className="rounded-3xl border border-[var(--line)] bg-white p-5 shadow-sm">
@@ -66,7 +68,14 @@ export function CartPage() {
                         </p>
                       ) : null}
                     </div>
-                    <p className="text-xl font-bold">{formatPrice(item.price)}</p>
+                    <div className="text-right">
+                      <p className="text-xl font-bold">{formatPrice(lineTotal)}</p>
+                      {item.quantity > 1 ? (
+                        <p className="mt-1 text-sm text-[var(--text-soft)]">
+                          {formatPrice(item.price)} pro Stueck
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -130,12 +139,7 @@ export function CartPage() {
           </div>
         </div>
 
-        <Link
-          href="/checkout"
-          className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)]"
-        >
-          Zur Kasse
-        </Link>
+        <CartCheckoutButton className="w-full rounded-full" />
         <Button variant="secondary" className="mt-3 w-full" onClick={clearCart}>
           Warenkorb leeren
         </Button>

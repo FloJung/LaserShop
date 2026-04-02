@@ -34,6 +34,25 @@ export type CartItem = {
   designJson?: CoasterDesignDocument;
 };
 
+function summarizeDesignDocument(design: CoasterDesignDocument) {
+  return {
+    designVersion: design.version,
+    designProductId: design.productId,
+    designUpdatedAt: design.updatedAt,
+    elementCount: design.elements.length,
+    elementTypes: design.elements.map((element) => element.type),
+    hasUploads: design.elements.some((element) => element.type === "upload")
+  } satisfies Record<string, unknown>;
+}
+
+function getCheckoutPreviewUrl(previewImage?: string) {
+  if (!previewImage || previewImage.startsWith("data:")) {
+    return undefined;
+  }
+
+  return previewImage;
+}
+
 function isLocalProjectImage(image?: string): image is string {
   return typeof image === "string" && image.startsWith("/images/");
 }
@@ -110,8 +129,8 @@ export function buildCheckoutRequest(input: {
       variantId: item.variantId,
       quantity: item.quantity,
       configurations: item.configurations,
-      designPreviewUrl: item.previewImage,
-      customData: item.designJson ? { designDocument: item.designJson } : undefined
+      designPreviewUrl: getCheckoutPreviewUrl(item.previewImage),
+      customData: item.designJson ? summarizeDesignDocument(item.designJson) : undefined
     }))
   };
 }

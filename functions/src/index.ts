@@ -14,7 +14,8 @@ import {
   getRequestUserRole,
   nowIso,
   requireAdmin,
-  REGION
+  REGION,
+  toCallableError
 } from "./lib/utils";
 
 export const validateCart = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
@@ -28,7 +29,7 @@ export const validateCart = onCall({ region: REGION }, async (request: CallableR
     };
   } catch (error) {
     logger.error("validateCart failed", error);
-    throw error;
+    throw toCallableError(error, "validateCart failed.");
   }
 });
 
@@ -38,7 +39,7 @@ export const createOrderFromCart = onCall({ region: REGION }, async (request: Ca
     return await createOrderFromValidatedCheckout(validatedCheckout, request.auth?.uid);
   } catch (error) {
     logger.error("createOrderFromCart failed", error);
-    throw error;
+    throw toCallableError(error, "createOrderFromCart failed.");
   }
 });
 
@@ -63,7 +64,7 @@ export const createUploadReservation = onCall({ region: REGION }, async (request
     };
   } catch (error) {
     logger.error("createUploadReservation failed", error);
-    throw error;
+    throw toCallableError(error, "createUploadReservation failed.");
   }
 });
 
@@ -111,7 +112,7 @@ export const updateOrderStatus = onCall({ region: REGION }, async (request: Call
     return { success: true };
   } catch (error) {
     logger.error("updateOrderStatus failed", error);
-    throw error;
+    throw toCallableError(error, "updateOrderStatus failed.");
   }
 });
 

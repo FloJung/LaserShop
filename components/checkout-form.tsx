@@ -36,6 +36,38 @@ const INITIAL_STATE: CheckoutFormState = {
   notesCustomer: ""
 };
 
+function validateCheckoutForm(state: CheckoutFormState) {
+  if (!state.email.trim()) {
+    return "Bitte E-Mail eingeben.";
+  }
+
+  if (!state.firstName.trim()) {
+    return "Bitte Vorname eingeben.";
+  }
+
+  if (!state.lastName.trim()) {
+    return "Bitte Nachname eingeben.";
+  }
+
+  if (!state.line1.trim()) {
+    return "Bitte Adresse eingeben.";
+  }
+
+  if (!state.postalCode.trim()) {
+    return "Bitte PLZ eingeben.";
+  }
+
+  if (!state.city.trim()) {
+    return "Bitte Stadt eingeben.";
+  }
+
+  if (!state.countryCode.trim() || state.countryCode.trim().length !== 2) {
+    return "Bitte gueltigen Laendercode mit 2 Buchstaben eingeben.";
+  }
+
+  return null;
+}
+
 function buildPayload(items: ReturnType<typeof useCart>["items"], state: CheckoutFormState) {
   return buildCheckoutRequest({
     items,
@@ -232,6 +264,12 @@ export function CheckoutForm() {
             disabled={!backendReady || isValidating || isSubmitting}
             onClick={async () => {
               setError(null);
+              const validationError = validateCheckoutForm(form);
+              if (validationError) {
+                setError(validationError);
+                return;
+              }
+
               setIsValidating(true);
 
               try {
@@ -258,6 +296,12 @@ export function CheckoutForm() {
             disabled={!backendReady || isSubmitting}
             onClick={async () => {
               setError(null);
+              const validationError = validateCheckoutForm(form);
+              if (validationError) {
+                setError(validationError);
+                return;
+              }
+
               setIsSubmitting(true);
 
               try {

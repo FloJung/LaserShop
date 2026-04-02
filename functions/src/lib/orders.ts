@@ -47,6 +47,40 @@ type ProductContext = {
   }>;
 };
 
+function summarizeOrderCustomData(customData?: Record<string, unknown>) {
+  if (!customData) {
+    return undefined;
+  }
+
+  const designVersion = typeof customData.designVersion === "number" ? customData.designVersion : undefined;
+  const designProductId = typeof customData.designProductId === "string" ? customData.designProductId : undefined;
+  const designUpdatedAt = typeof customData.designUpdatedAt === "string" ? customData.designUpdatedAt : undefined;
+  const elementCount = typeof customData.elementCount === "number" ? customData.elementCount : undefined;
+  const hasUploads = typeof customData.hasUploads === "boolean" ? customData.hasUploads : undefined;
+  const elementTypes = Array.isArray(customData.elementTypes)
+    ? customData.elementTypes.filter((entry): entry is string => typeof entry === "string").slice(0, 50)
+    : undefined;
+
+  const sanitized = {
+    ...(typeof designVersion === "number" ? { designVersion } : {}),
+    ...(designProductId ? { designProductId } : {}),
+    ...(designUpdatedAt ? { designUpdatedAt } : {}),
+    ...(typeof elementCount === "number" ? { elementCount } : {}),
+    ...(typeof hasUploads === "boolean" ? { hasUploads } : {}),
+    ...(elementTypes && elementTypes.length > 0 ? { elementTypes } : {})
+  } satisfies Record<string, unknown>;
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+function sanitizeOrderPreviewUrl(previewUrl?: string) {
+  if (!previewUrl || previewUrl.startsWith("data:")) {
+    return undefined;
+  }
+
+  return previewUrl;
+}
+
 function throwBadRequest(message: string): never {
   throw new HttpsError("invalid-argument", message);
 }
@@ -447,8 +481,8 @@ async function writeOrderItem(orderRef: DocumentReference, line: ValidatedCartLi
     lineSubtotalCents: line.lineSubtotalCents,
     lineTotalCents: line.lineTotalCents,
     isPersonalized: line.isPersonalized,
-    designPreviewUrl: line.designPreviewUrl,
-    customData: line.customData,
+    designPreviewUrl: sanitizeOrderPreviewUrl(line.designPreviewUrl),
+    customData: summarizeOrderCustomData(line.customData),
     createdAt
   };
 

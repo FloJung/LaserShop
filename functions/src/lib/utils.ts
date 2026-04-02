@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { CallableRequest } from "firebase-functions/v2/https";
 import { HttpsError } from "firebase-functions/v2/https";
+import { ZodError } from "zod";
 import {
   ALLOWED_ORDER_STATUS_TRANSITIONS,
   ALLOWED_PAYMENT_STATUS_TRANSITIONS,
@@ -67,4 +68,29 @@ export function assertProductionTransition(currentStatus: ProductionStatus, next
 
 export function createUploadId() {
   return randomUUID();
+}
+
+function formatZodError(error: ZodError) {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join(".") : "request";
+      return `${path}: ${issue.message}`;
+    })
+    .join("; ");
+}
+
+export function toCallableError(error: unknown, fallbackMessage: string) {
+  if (error instanceof HttpsError) {
+    return error;
+  }
+
+  if (error instanceof ZodError) {
+    return new HttpsError("invalid-argument", formatZodError(error));
+  }
+
+  if (error instanceof Error) {
+    return new HttpsError("internal", error.message || fallbackMessage);
+  }
+
+  return new HttpsError("internal", fallbackMessage);
 }
