@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getCurrentSession } from "@/lib/server/admin-session";
-import { syncProductToShopify } from "@/lib/server/shopify";
+import { syncProductToShopifyDetailed } from "@/lib/server/shopify";
 import { isAdminRole } from "@/shared/firebase/roles";
 
 function nowIso() {
@@ -72,22 +72,19 @@ export async function POST() {
 
   await batch.commit();
 
-  try {
-    await syncProductToShopify({
-      localProductId: productRef.id,
-      localVariantId: defaultVariantId,
-      title: productDoc.title,
-      description: productDoc.longDescription,
-      price: defaultVariantDoc.priceCents / 100,
-      sku: defaultVariantDoc.sku,
-      status: productDoc.status
-    });
-  } catch (error) {
-    console.error("[shopify] product sync after create failed:", error);
-  }
+  const shopifySync = await syncProductToShopifyDetailed({
+    localProductId: productRef.id,
+    localVariantId: defaultVariantId,
+    title: productDoc.title,
+    description: productDoc.longDescription,
+    price: defaultVariantDoc.priceCents / 100,
+    sku: defaultVariantDoc.sku,
+    status: productDoc.status
+  });
 
   return NextResponse.json({
     success: true,
-    productId: productRef.id
+    productId: productRef.id,
+    shopifySync
   });
 }

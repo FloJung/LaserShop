@@ -15,6 +15,14 @@ type ShopifyAccessTokenResponse = {
 
 let storedShopifyAccessToken: string | null = null;
 
+function maskToken(value: string) {
+  if (value.length <= 10) {
+    return "***";
+  }
+
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error.";
 }
@@ -83,7 +91,10 @@ export async function exchangeShopifyCodeForAccessToken(code: string) {
   }
 
   storedShopifyAccessToken = accessToken;
-  console.log("[shopify] access token received:", accessToken);
+  console.log("[shopify] access token received via oauth:", {
+    scope: payload?.scope ?? null,
+    tokenPreview: maskToken(accessToken)
+  });
 
   return {
     accessToken,

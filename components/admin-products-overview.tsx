@@ -15,14 +15,14 @@ function formatDateTime(value: string) {
 
 function getStatusClasses(status: AdminProductSummary["status"]) {
   if (status === "active") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
   if (status === "archived") {
-    return "bg-stone-100 text-stone-700 border-stone-200";
+    return "border-stone-200 bg-stone-100 text-stone-700";
   }
 
-  return "bg-amber-50 text-amber-700 border-amber-200";
+  return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
 export function AdminProductsOverview({ products }: AdminProductsOverviewProps) {
@@ -69,7 +69,8 @@ export function AdminProductsOverview({ products }: AdminProductsOverviewProps) 
         </div>
 
         <div className="overflow-hidden rounded-3xl border border-[var(--line)] bg-white shadow-sm">
-          <div className="grid grid-cols-[1.8fr_1fr_0.9fr_0.8fr] gap-4 border-b border-[var(--line)] px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-soft)] max-md:hidden">
+          <div className="grid grid-cols-[72px_1.8fr_1fr_0.9fr_0.8fr] gap-4 border-b border-[var(--line)] bg-slate-50/80 px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-soft)] max-md:hidden">
+            <span>Nr.</span>
             <span>Produkt</span>
             <span>Katalog</span>
             <span>Status</span>
@@ -77,12 +78,26 @@ export function AdminProductsOverview({ products }: AdminProductsOverviewProps) 
           </div>
 
           <div className="divide-y divide-[var(--line)]">
-            {products.map((product) => (
-              <article key={product.id} className="grid gap-5 px-6 py-5 md:grid-cols-[1.8fr_1fr_0.9fr_0.8fr] md:items-center">
+            {products.map((product, index) => (
+              <article
+                key={product.id}
+                className={`grid gap-5 px-6 py-5 transition-colors md:grid-cols-[72px_1.8fr_1fr_0.9fr_0.8fr] md:items-center ${
+                  index % 2 === 0 ? "bg-white" : "bg-zinc-200"
+                }`}
+              >
+                <div className="flex items-center gap-3 md:block">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-soft)] md:hidden">
+                    Nr.
+                  </span>
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--line)] bg-white text-sm font-semibold text-[var(--text)] shadow-sm">
+                    {index + 1}
+                  </span>
+                </div>
+
                 <div>
                   <p className="text-lg font-semibold text-[var(--text)]">{product.title}</p>
                   <p className="mt-1 text-sm text-[var(--text-soft)]">
-                    ID {product.id} · /{product.slug} · {product.variantCount} Varianten
+                    ID {product.id} &middot; /{product.slug} &middot; {product.variantCount} Varianten
                   </p>
                   <p className="mt-2 text-sm text-[var(--text-soft)]">Zuletzt aktualisiert: {formatDateTime(product.updatedAt)}</p>
                 </div>
@@ -90,7 +105,7 @@ export function AdminProductsOverview({ products }: AdminProductsOverviewProps) 
                 <div className="text-sm text-[var(--text-soft)]">
                   <p>{product.collection}</p>
                   <p className="mt-1">
-                    {product.shopCategory} · {product.glassType}
+                    {product.shopCategory} &middot; {product.glassType}
                   </p>
                   <p className="mt-1">{product.category}</p>
                 </div>

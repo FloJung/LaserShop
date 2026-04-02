@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getAdminEditableProduct } from "@/lib/server/admin-products";
 import { getCurrentSession } from "@/lib/server/admin-session";
-import { syncProductToShopify } from "@/lib/server/shopify";
+import { syncProductToShopifyDetailed } from "@/lib/server/shopify";
 import { editableProductPayloadSchema } from "@/shared/catalog";
 import { isAdminRole } from "@/shared/firebase/roles";
 
@@ -301,16 +301,13 @@ export async function PUT(request: Request, context: { params: Promise<{ product
 
   await batch.commit();
 
-  try {
-    await syncProductToShopify(getShopifySyncPayload(productId, payload));
-  } catch (error) {
-    console.error("[shopify] product sync after update failed:", error);
-  }
+  const shopifySync = await syncProductToShopifyDetailed(getShopifySyncPayload(productId, payload));
 
   return NextResponse.json({
     success: true,
     productId,
-    updatedAt: timestamp
+    updatedAt: timestamp,
+    shopifySync
   });
 }
 

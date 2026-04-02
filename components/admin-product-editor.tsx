@@ -94,6 +94,20 @@ type AdminProductEditorProps = {
   product: EditableProduct;
 };
 
+type ShopifySyncState = {
+  success: boolean;
+  action?: "create" | "update";
+  responseStatus?: number | null;
+  error?: string | null;
+  shopifyError?: string | null;
+  shopifyProductId?: string | null;
+  shopifyVariantId?: string | null;
+  mappingWritten?: boolean;
+  mappingExists?: boolean;
+  mappingPath?: string | null;
+  tokenSource?: "env" | "memory" | null;
+};
+
 function createId(prefix: string) {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -165,7 +179,10 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
   const [draft, setDraft] = useState(product);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [syncState, setSyncState] = useState<ShopifySyncState | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function setField<K extends keyof EditableProduct>(key: K, value: EditableProduct[K]) {
@@ -189,7 +206,11 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
         body: JSON.stringify(draft)
       });
 
-      const payload = (await response.json().catch(() => null)) as { error?: string; updatedAt?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        updatedAt?: string;
+        shopifySync?: ShopifySyncState;
+      } | null;
 
       if (!response.ok) {
         setSaveError(payload?.error ?? "Produkt konnte nicht gespeichert werden.");
@@ -200,12 +221,53 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
         ...current,
         updatedAt: payload?.updatedAt ?? current.updatedAt
       }));
-      setSaveMessage("Produkt gespeichert.");
+      setSyncState(payload?.shopifySync ?? null);
+      setSaveMessage(
+        payload?.shopifySync?.success === false
+          ? `Produkt gespeichert. Shopify-Sync fehlgeschlagen: ${payload.shopifySync.shopifyError ?? payload.shopifySync.error ?? "Unbekannter Fehler."}`
+          : payload?.shopifySync?.success
+            ? "Produkt gespeichert und nach Shopify synchronisiert."
+            : "Produkt gespeichert."
+      );
       startTransition(() => {
         router.refresh();
       });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleShopifySync() {
+    setSyncError(null);
+    setSyncState(null);
+    setIsSyncing(true);
+
+    try {
+      const response = await fetch(`/api/admin/products/${draft.id}/shopify-sync`, {
+        method: "POST"
+      });
+
+      const payload = (await response.json().catch(() => null)) as (ShopifySyncState & { error?: string | null }) | null;
+
+      if (!response.ok && !payload) {
+        setSyncError("Shopify-Sync konnte nicht ausgefuehrt werden.");
+        return;
+      }
+
+      if (payload) {
+        setSyncState(payload);
+      }
+
+      if (!response.ok) {
+        setSyncError(payload?.shopifyError ?? payload?.error ?? "Shopify-Sync fehlgeschlagen.");
+        return;
+      }
+
+      startTransition(() => {
+        router.refresh();
+      });
+    } finally {
+      setIsSyncing(false);
     }
   }
 
@@ -231,6 +293,16 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
               >
                 Zur Produktliste
               </Link>
+              <button
+                type="button"
+                disabled={isSaving || isPending || isSyncing}
+                onClick={() => {
+                  void handleShopifySync();
+                }}
+                className="admin-action-secondary"
+              >
+                {isSyncing ? "Sync laeuft..." : "Nach Shopify synchronisieren"}
+              </button>
               <AdminDeleteProductButton productId={draft.id} productTitle={draft.title} />
               <button
                 type="button"
@@ -256,6 +328,26 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
 
           {saveError ? <p className="admin-alert admin-alert-error mt-5">{saveError}</p> : null}
           {saveMessage ? <p className="admin-alert admin-alert-success mt-5">{saveMessage}</p> : null}
+          {syncError ? <p className="admin-alert admin-alert-error mt-5">{syncError}</p> : null}
+          {syncState ? (
+            <div className="admin-nested-panel mt-5 rounded-[1.5rem] p-5 text-sm text-slate-700">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="admin-meta-pill">{syncState.success ? "Shopify-Sync erfolgreich" : "Shopify-Sync fehlgeschlagen"}</span>
+                {syncState.action ? <span>Aktion: {syncState.action}</span> : null}
+                {typeof syncState.responseStatus === "number" ? <span>Response: {syncState.responseStatus}</span> : null}
+                {syncState.tokenSource ? <span>Token: {syncState.tokenSource}</span> : null}
+              </div>
+              <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                <p>Shopify Product ID: {syncState.shopifyProductId ?? "-"}</p>
+                <p>Shopify Variant ID: {syncState.shopifyVariantId ?? "-"}</p>
+                <p>Mapping geschrieben: {syncState.mappingWritten ? "ja" : "nein"}</p>
+                <p>Mapping vorhanden: {syncState.mappingExists ? "ja" : "nein"}</p>
+                <p className="lg:col-span-2">Mapping-Pfad: {syncState.mappingPath ?? "-"}</p>
+                {syncState.error ? <p className="lg:col-span-2 text-rose-700">Fehler: {syncState.error}</p> : null}
+                {syncState.shopifyError ? <p className="lg:col-span-2 text-rose-700">Shopify: {syncState.shopifyError}</p> : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <Section title="Basisdaten" hint="Shop-relevante Stammdaten und Sichtbarkeit des Produkts.">

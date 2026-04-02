@@ -39,6 +39,33 @@ type LocalProductSyncInput = {
   status?: "draft" | "active" | "archived";
 };
 
+export type ShopifyAccessTokenSource = "env" | "memory";
+
+export type ShopifyProductSyncResult =
+  | {
+      success: true;
+      action: "create" | "update";
+      localProductId: string;
+      localVariantId?: string;
+      responseStatus: number;
+      shopifyProductId: string;
+      shopifyVariantId?: string;
+      mappingWritten: boolean;
+      mappingPath?: string;
+      tokenSource: ShopifyAccessTokenSource;
+    }
+  | {
+      success: false;
+      action: "create" | "update";
+      localProductId: string;
+      localVariantId?: string;
+      responseStatus?: number;
+      error: string;
+      shopifyError?: string;
+      mappingWritten: false;
+      tokenSource?: ShopifyAccessTokenSource;
+    };
+
 type ShopifyProductRecord = {
   id?: number;
   admin_graphql_api_id?: string;
@@ -63,6 +90,18 @@ type ShopifyProductMappingDocument = {
   createdAt: string;
   updatedAt: string;
 };
+
+class ShopifyApiRequestError extends Error {
+  readonly responseStatus: number;
+  readonly shopifyError: string;
+
+  constructor(message: string, responseStatus: number, shopifyError: string) {
+    super(message);
+    this.name = "ShopifyApiRequestError";
+    this.responseStatus = responseStatus;
+    this.shopifyError = shopifyError;
+  }
+}
 
 type ShopifyIncomingLineItem = {
   id?: number | string;
@@ -268,10 +307,39 @@ function getShopifyClientSecret() {
   return clientSecret;
 }
 
+function normalizeShopifyAccessToken(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "DEIN_VOLLSTAENDIGER_TOKEN") {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function getShopifyAccessTokenSource() {
+  if (normalizeShopifyAccessToken(process.env.SHOPIFY_ACCESS_TOKEN)) {
+    return "env" as const;
+  }
+
+  if (normalizeShopifyAccessToken(getStoredShopifyAccessToken())) {
+    return "memory" as const;
+  }
+
+  return null;
+}
+
 function getShopifyAccessToken() {
-  const accessToken = getStoredShopifyAccessToken() ?? process.env.SHOPIFY_ACCESS_TOKEN;
+  const accessToken =
+    normalizeShopifyAccessToken(process.env.SHOPIFY_ACCESS_TOKEN) ??
+    normalizeShopifyAccessToken(getStoredShopifyAccessToken());
   if (!accessToken) {
-    throw new Error("No Shopify access token is available in memory or SHOPIFY_ACCESS_TOKEN.");
+    throw new Error(
+      "No Shopify access token is available. Set SHOPIFY_ACCESS_TOKEN on the server or complete Shopify OAuth in the current process."
+    );
   }
 
   return accessToken;
@@ -279,6 +347,14 @@ function getShopifyAccessToken() {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error.";
+}
+
+function hasShopifyAccessToken() {
+  return getShopifyAccessTokenSource() !== null;
+}
+
+function logShopifyProductSync(event: string, details: Record<string, unknown>) {
+  console.log(`[shopify] product sync ${event}:`, details);
 }
 
 function normalizeCheckoutQuantity(value: number) {
@@ -451,7 +527,13 @@ async function saveShopifyProductMapping(input: {
   shopifyProduct: ShopifyProductRecord;
 }) {
   if (!isFirebaseAdminConfigured() || !input.shopifyProduct.id) {
-    return;
+    console.warn("[shopify] product mapping skipped:", {
+      localProductId: input.localProductId,
+      localVariantId: input.localVariantId ?? null,
+      hasFirebaseAdmin: isFirebaseAdminConfigured(),
+      hasShopifyProductId: Boolean(input.shopifyProduct.id)
+    });
+    return null;
   }
 
   const timestamp = nowIso();
@@ -471,6 +553,16 @@ async function saveShopifyProductMapping(input: {
   };
 
   await mappingRef.set(mapping, { merge: true });
+  logShopifyProductSync("mapping saved", {
+    localProductId: input.localProductId,
+    localVariantId: input.localVariantId ?? null,
+    shopifyProductId: mapping.shopifyProductId,
+    shopifyVariantId: mapping.shopifyVariantId ?? null,
+    mappingPath: `${SHOPIFY_PRODUCT_MAPPING_COLLECTION}/${input.localProductId}`,
+    mappingWritten: true
+  });
+
+  return mapping;
 }
 
 async function getShopifyProductMapping(localProductId: string) {
@@ -484,6 +576,24 @@ async function getShopifyProductMapping(localProductId: string) {
   }
 
   return snapshot.data() as ShopifyProductMappingDocument;
+}
+
+export async function getShopifyProductMappingSummary(localProductId: string) {
+  const mapping = await getShopifyProductMapping(localProductId);
+  if (!mapping) {
+    return null;
+  }
+
+  return {
+    localProductId: mapping.localProductId,
+    ...(mapping.localVariantId ? { localVariantId: mapping.localVariantId } : {}),
+    shopifyProductId: mapping.shopifyProductId,
+    ...(mapping.shopifyVariantId ? { shopifyVariantId: mapping.shopifyVariantId } : {}),
+    ...(mapping.shopifyAdminGraphqlApiId ? { shopifyAdminGraphqlApiId: mapping.shopifyAdminGraphqlApiId } : {}),
+    createdAt: mapping.createdAt,
+    updatedAt: mapping.updatedAt,
+    mappingPath: `${SHOPIFY_PRODUCT_MAPPING_COLLECTION}/${localProductId}`
+  };
 }
 
 async function updateShopifyProduct(productData: LocalProductSyncInput & { shopifyProductId: string }) {
@@ -508,21 +618,40 @@ async function updateShopifyProduct(productData: LocalProductSyncInput & { shopi
 
   const payload = await parseJsonResponse<ShopifyProductResponse>(response);
   if (!response.ok || !payload?.product?.id) {
-    throw new Error(`Shopify product update failed (${response.status}): ${extractShopifyError(payload)}`);
+    const shopifyError = extractShopifyError(payload);
+    console.error("[shopify] product update failed:", {
+      localProductId: productData.localProductId,
+      localVariantId: productData.localVariantId ?? null,
+      shopifyProductId: productData.shopifyProductId,
+      responseStatus: response.status,
+      shopifyError
+    });
+    throw new ShopifyApiRequestError(
+      `Shopify product update failed (${response.status}): ${shopifyError}`,
+      response.status,
+      shopifyError
+    );
   }
 
-  await saveShopifyProductMapping({
+  const mapping = await saveShopifyProductMapping({
     localProductId: productData.localProductId,
     localVariantId: productData.localVariantId,
     shopifyProduct: payload.product
   });
 
-  console.log("[shopify] product updated:", {
+  logShopifyProductSync("update response", {
     localProductId: productData.localProductId,
-    shopifyProductId: payload.product.id
+    localVariantId: productData.localVariantId ?? null,
+    responseStatus: response.status,
+    shopifyProductId: payload.product.id,
+    shopifyVariantId: payload.product.variants?.[0]?.id ?? null
   });
 
-  return payload.product;
+  return {
+    product: payload.product,
+    responseStatus: response.status,
+    mapping
+  };
 }
 
 export async function createShopifyProduct(productData: LocalProductSyncInput) {
@@ -539,33 +668,156 @@ export async function createShopifyProduct(productData: LocalProductSyncInput) {
 
   const payload = await parseJsonResponse<ShopifyProductResponse>(response);
   if (!response.ok || !payload?.product?.id) {
-    throw new Error(`Shopify product creation failed (${response.status}): ${extractShopifyError(payload)}`);
+    const shopifyError = extractShopifyError(payload);
+    console.error("[shopify] product creation failed:", {
+      localProductId: productData.localProductId,
+      localVariantId: productData.localVariantId ?? null,
+      responseStatus: response.status,
+      shopifyError
+    });
+    throw new ShopifyApiRequestError(
+      `Shopify product creation failed (${response.status}): ${shopifyError}`,
+      response.status,
+      shopifyError
+    );
   }
 
-  await saveShopifyProductMapping({
+  const mapping = await saveShopifyProductMapping({
     localProductId: productData.localProductId,
     localVariantId: productData.localVariantId,
     shopifyProduct: payload.product
   });
 
-  console.log("[shopify] product created:", {
+  logShopifyProductSync("create response", {
     localProductId: productData.localProductId,
-    shopifyProductId: payload.product.id
+    localVariantId: productData.localVariantId ?? null,
+    responseStatus: response.status,
+    shopifyProductId: payload.product.id,
+    shopifyVariantId: payload.product.variants?.[0]?.id ?? null
   });
 
-  return payload.product;
+  return {
+    product: payload.product,
+    responseStatus: response.status,
+    mapping
+  };
 }
 
-export async function syncProductToShopify(productData: LocalProductSyncInput) {
+async function syncProductToShopifyOrThrow(productData: LocalProductSyncInput) {
   const mapping = await getShopifyProductMapping(productData.localProductId);
+  const action: "create" | "update" = mapping?.shopifyProductId ? "update" : "create";
+  const tokenSource = getShopifyAccessTokenSource();
+  logShopifyProductSync("started", {
+    action,
+    localProductId: productData.localProductId,
+    localVariantId: productData.localVariantId ?? null,
+    hasAccessToken: hasShopifyAccessToken(),
+    tokenSource,
+    hasFirebaseAdmin: isFirebaseAdminConfigured(),
+    existingShopifyProductId: mapping?.shopifyProductId ?? null,
+    existingShopifyVariantId: mapping?.shopifyVariantId ?? null
+  });
+
   if (mapping?.shopifyProductId) {
-    return updateShopifyProduct({
+    const result = await updateShopifyProduct({
       ...productData,
       shopifyProductId: mapping.shopifyProductId
     });
+
+    return {
+      success: true as const,
+      action,
+      localProductId: productData.localProductId,
+      ...(productData.localVariantId ? { localVariantId: productData.localVariantId } : {}),
+      responseStatus: result.responseStatus,
+      shopifyProductId: String(result.product.id),
+      ...(result.mapping?.shopifyVariantId ? { shopifyVariantId: result.mapping.shopifyVariantId } : {}),
+      mappingWritten: Boolean(result.mapping),
+      ...(result.mapping ? { mappingPath: `${SHOPIFY_PRODUCT_MAPPING_COLLECTION}/${productData.localProductId}` } : {}),
+      tokenSource: tokenSource ?? "memory",
+      shopifyProduct: result.product
+    };
   }
 
-  return createShopifyProduct(productData);
+  const result = await createShopifyProduct(productData);
+  return {
+    success: true as const,
+    action,
+    localProductId: productData.localProductId,
+    ...(productData.localVariantId ? { localVariantId: productData.localVariantId } : {}),
+    responseStatus: result.responseStatus,
+    shopifyProductId: String(result.product.id),
+    ...(result.mapping?.shopifyVariantId ? { shopifyVariantId: result.mapping.shopifyVariantId } : {}),
+    mappingWritten: Boolean(result.mapping),
+    ...(result.mapping ? { mappingPath: `${SHOPIFY_PRODUCT_MAPPING_COLLECTION}/${productData.localProductId}` } : {}),
+    tokenSource: tokenSource ?? "memory",
+    shopifyProduct: result.product
+  };
+}
+
+export async function syncProductToShopifyDetailed(productData: LocalProductSyncInput): Promise<ShopifyProductSyncResult> {
+  try {
+    const result = await syncProductToShopifyOrThrow(productData);
+    logShopifyProductSync("completed", {
+      action: result.action,
+      localProductId: result.localProductId,
+      localVariantId: result.localVariantId ?? null,
+      responseStatus: result.responseStatus,
+      shopifyProductId: result.shopifyProductId,
+      shopifyVariantId: result.shopifyVariantId ?? null,
+      mappingWritten: result.mappingWritten,
+      mappingPath: result.mappingPath ?? null,
+      tokenSource: result.tokenSource
+    });
+
+    return {
+      success: true,
+      action: result.action,
+      localProductId: result.localProductId,
+      ...(result.localVariantId ? { localVariantId: result.localVariantId } : {}),
+      responseStatus: result.responseStatus,
+      shopifyProductId: result.shopifyProductId,
+      ...(result.shopifyVariantId ? { shopifyVariantId: result.shopifyVariantId } : {}),
+      mappingWritten: result.mappingWritten,
+      ...(result.mappingPath ? { mappingPath: result.mappingPath } : {}),
+      tokenSource: result.tokenSource
+    };
+  } catch (error) {
+    const responseStatus = error instanceof ShopifyApiRequestError ? error.responseStatus : undefined;
+    const shopifyError = error instanceof ShopifyApiRequestError ? error.shopifyError : undefined;
+    const tokenSource = getShopifyAccessTokenSource() ?? undefined;
+    const action: "create" | "update" = (await getShopifyProductMapping(productData.localProductId))?.shopifyProductId
+      ? "update"
+      : "create";
+    console.error("[shopify] product sync failed:", {
+      action,
+      localProductId: productData.localProductId,
+      localVariantId: productData.localVariantId ?? null,
+      responseStatus: responseStatus ?? null,
+      error: getErrorMessage(error),
+      shopifyError: shopifyError ?? null,
+      hasAccessToken: hasShopifyAccessToken(),
+      tokenSource: tokenSource ?? null,
+      hasFirebaseAdmin: isFirebaseAdminConfigured()
+    });
+
+    return {
+      success: false,
+      action,
+      localProductId: productData.localProductId,
+      ...(productData.localVariantId ? { localVariantId: productData.localVariantId } : {}),
+      ...(typeof responseStatus === "number" ? { responseStatus } : {}),
+      error: getErrorMessage(error),
+      ...(shopifyError ? { shopifyError } : {}),
+      mappingWritten: false,
+      ...(tokenSource ? { tokenSource } : {})
+    };
+  }
+}
+
+export async function syncProductToShopify(productData: LocalProductSyncInput) {
+  const result = await syncProductToShopifyOrThrow(productData);
+  return result.shopifyProduct;
 }
 
 export function generateShopifyWebhookHmac(rawBody: string) {
