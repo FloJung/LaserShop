@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { collections, shopCategories } from "@/lib/data/products";
 
+const serviceLinks: ReadonlyArray<{ label: string; href?: string }> = [
+  { label: "Versand & Retoure" },
+  { label: "Zahlung & Sicherheit" },
+  { label: "Kontakt" },
+  { label: "Impressum", href: "/impressum" },
+  { label: "AGB", href: "/agb" }
+];
+
 export function Footer() {
   return (
     <footer className="mt-10 border-t border-[var(--line)] bg-white">
@@ -41,9 +49,17 @@ export function Footer() {
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--text-soft)]">Service</p>
           <ul className="mt-3 space-y-2 text-sm text-[var(--text-soft)]">
-            <li>Versand & Retoure</li>
-            <li>Zahlung & Sicherheit</li>
-            <li>Kontakt</li>
+            {serviceLinks.map((item) => (
+              <li key={item.label}>
+                {item.href ? (
+                  <Link href={item.href} className="transition hover:text-[var(--brand)]">
+                    {item.label}
+                  </Link>
+                ) : (
+                  <span>{item.label}</span>
+                )}
+              </li>
+            ))}
           </ul>
         </div>
       </div>

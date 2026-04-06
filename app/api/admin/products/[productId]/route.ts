@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { getAdminEditableProduct } from "@/lib/server/admin-products";
+import { deleteProduct } from "@/lib/server/admin-product-delete";
+import { revalidateShopCatalog } from "@/lib/server/catalog-revalidation";
 import { getCurrentSession } from "@/lib/server/admin-session";
-import { syncProductToShopifyDetailed } from "@/lib/server/shopify";
+import {
+  getProductPublicationErrorMessage,
+  syncProductStatusToShopify,
+  validateProductForPublishing
+} from "@/lib/server/product-publication";
 import { editableProductPayloadSchema } from "@/shared/catalog";
 import { isAdminRole } from "@/shared/firebase/roles";
 
@@ -15,23 +21,6 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-function getShopifySyncPayload(productId: string, payload: ReturnType<typeof normalizePayload>) {
-  const preferredVariant =
-    payload.variants.find((variant) => variant.id === payload.defaultVariantId) ??
-    payload.variants.find((variant) => variant.isActive) ??
-    payload.variants[0];
-
-  return {
-    localProductId: productId,
-    localVariantId: preferredVariant?.id,
-    title: payload.title,
-    description: payload.longDescription || payload.shortDescription,
-    price: (preferredVariant?.priceCents ?? 0) / 100,
-    sku: preferredVariant?.sku,
-    status: payload.status
-  } as const;
 }
 
 function uniqueById<T extends { id: string }>(items: T[], label: string) {
@@ -61,6 +50,9 @@ function normalizePayload(input: unknown) {
 
   const normalizedImages = parsed.images.map((image, index) => ({
     ...image,
+    productId: image.productId || "",
+    url: image.url ?? image.publicUrl ?? "",
+    publicUrl: image.publicUrl ?? image.url ?? "",
     sortOrder: index
   }));
 
@@ -118,21 +110,6 @@ async function requireAdminRequest() {
   return null;
 }
 
-async function commitDeleteChunks(paths: Array<{ path: string }>) {
-  const db = getAdminDb();
-
-  for (let index = 0; index < paths.length; index += 400) {
-    const batch = db.batch();
-    const chunk = paths.slice(index, index + 400);
-
-    for (const entry of chunk) {
-      batch.delete(db.doc(entry.path));
-    }
-
-    await batch.commit();
-  }
-}
-
 export async function GET(_: Request, context: { params: Promise<{ productId: string }> }) {
   const authError = await requireAdminRequest();
   if (authError) {
@@ -172,6 +149,23 @@ export async function PUT(request: Request, context: { params: Promise<{ product
   const timestamp = nowIso();
   const productRef = db.collection("products").doc(productId);
   const batch = db.batch();
+  const publicationValidation =
+    payload.status === "active"
+      ? validateProductForPublishing(payload)
+      : {
+          isPublishable: true,
+          issues: []
+        };
+
+  if (!publicationValidation.isPublishable) {
+    return NextResponse.json(
+      {
+        error: getProductPublicationErrorMessage(publicationValidation),
+        validationIssues: publicationValidation.issues
+      },
+      { status: 400 }
+    );
+  }
 
   batch.set(
     productRef,
@@ -194,6 +188,9 @@ export async function PUT(request: Request, context: { params: Promise<{ product
       rating: payload.rating,
       reviews: payload.reviews,
       status: payload.status,
+      shopifySyncStatus: "pending",
+      ...(existingProduct.shopifyLastSyncedAt ? { shopifyLastSyncedAt: existingProduct.shopifyLastSyncedAt } : {}),
+      shopifyLastAttemptedAt: timestamp,
       isPersonalizable: payload.isPersonalizable,
       defaultVariantId: payload.defaultVariantId,
       createdAt: existingProduct.createdAt,
@@ -238,13 +235,36 @@ export async function PUT(request: Request, context: { params: Promise<{ product
 
   for (const image of payload.images) {
     const existingImage = existingImageMap.get(image.id);
+    const publicUrl = image.publicUrl || image.url || existingImage?.publicUrl || existingImage?.url;
+    const syncStatusChanged =
+      !existingImage ||
+      existingImage.altText !== image.altText ||
+      existingImage.sortOrder !== image.sortOrder ||
+      existingImage.isPrimary !== image.isPrimary ||
+      existingImage.publicUrl !== publicUrl;
+
     batch.set(productRef.collection("images").doc(image.id), {
-      storagePath: image.storagePath || existingImage?.storagePath || image.url,
-      url: image.url,
+      productId,
+      ...(image.originalFilename || existingImage?.originalFilename
+        ? { originalFilename: image.originalFilename || existingImage?.originalFilename }
+        : {}),
+      ...(image.mimeType || existingImage?.mimeType ? { mimeType: image.mimeType || existingImage?.mimeType } : {}),
+      ...(typeof image.fileSize === "number" || typeof existingImage?.fileSize === "number"
+        ? { fileSize: image.fileSize ?? existingImage?.fileSize }
+        : {}),
+      storagePath: image.storagePath || existingImage?.storagePath || publicUrl,
+      url: publicUrl,
+      publicUrl,
       altText: image.altText,
       sortOrder: image.sortOrder,
       isPrimary: image.isPrimary,
-      createdAt: existingImage?.createdAt ?? timestamp
+      syncStatus: syncStatusChanged ? "pending" : image.syncStatus || existingImage?.syncStatus || "pending",
+      ...(image.syncError || existingImage?.syncError ? { syncError: image.syncError || existingImage?.syncError } : {}),
+      ...(image.shopifyImageId || existingImage?.shopifyImageId
+        ? { shopifyImageId: image.shopifyImageId || existingImage?.shopifyImageId }
+        : {}),
+      createdAt: existingImage?.createdAt ?? timestamp,
+      updatedAt: timestamp
     });
   }
 
@@ -301,12 +321,29 @@ export async function PUT(request: Request, context: { params: Promise<{ product
 
   await batch.commit();
 
-  const shopifySync = await syncProductToShopifyDetailed(getShopifySyncPayload(productId, payload));
+  const productForSync = await getAdminEditableProduct(productId);
+  if (!productForSync) {
+    return NextResponse.json({ error: "Product not found after save." }, { status: 404 });
+  }
+
+  const shopifySync = await syncProductStatusToShopify({
+    productId,
+    product: productForSync
+  });
+  const refreshedProduct = await getAdminEditableProduct(productId);
+  if (refreshedProduct) {
+    revalidateShopCatalog({
+      currentProduct: refreshedProduct,
+      previousProduct: existingProduct
+    });
+  }
 
   return NextResponse.json({
     success: true,
     productId,
     updatedAt: timestamp,
+    images: refreshedProduct?.images ?? payload.images,
+    product: refreshedProduct,
     shopifySync
   });
 }
@@ -318,43 +355,14 @@ export async function DELETE(_: Request, context: { params: Promise<{ productId:
   }
 
   const { productId } = await context.params;
-  const existingProduct = await getAdminEditableProduct(productId);
-  if (!existingProduct) {
-    return NextResponse.json({ error: "Product not found." }, { status: 404 });
+  const result = await deleteProduct(productId);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.error === "Produkt nicht gefunden." ? 404 : 500 });
   }
-
-  const deletePaths: Array<{ path: string }> = [];
-  const productBasePath = `products/${productId}`;
-
-  for (const variant of existingProduct.variants) {
-    deletePaths.push({
-      path: `${productBasePath}/variants/${variant.id}`
-    });
-  }
-
-  for (const image of existingProduct.images) {
-    deletePaths.push({
-      path: `${productBasePath}/images/${image.id}`
-    });
-  }
-
-  for (const option of existingProduct.options) {
-    for (const value of option.values) {
-      deletePaths.push({
-        path: `${productBasePath}/options/${option.id}/values/${value.id}`
-      });
-    }
-
-    deletePaths.push({
-      path: `${productBasePath}/options/${option.id}`
-    });
-  }
-
-  deletePaths.push({ path: productBasePath });
-  await commitDeleteChunks(deletePaths);
 
   return NextResponse.json({
     success: true,
-    productId
+    productId: result.productId,
+    message: result.message
   });
 }

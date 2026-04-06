@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { getAdminEditableProduct } from "@/lib/server/admin-products";
+import { revalidateShopCatalog } from "@/lib/server/catalog-revalidation";
 import { getCurrentSession } from "@/lib/server/admin-session";
-import { syncProductToShopifyDetailed } from "@/lib/server/shopify";
+import { syncProductStatusToShopify } from "@/lib/server/product-publication";
 import { isAdminRole } from "@/shared/firebase/roles";
 
 function nowIso() {
@@ -48,6 +50,8 @@ export async function POST() {
     rating: 5,
     reviews: 0,
     status: "draft" as const,
+    shopifySyncStatus: "pending" as const,
+    shopifyLastAttemptedAt: timestamp,
     isPersonalizable: true,
     defaultVariantId,
     createdAt: timestamp,
@@ -72,14 +76,17 @@ export async function POST() {
 
   await batch.commit();
 
-  const shopifySync = await syncProductToShopifyDetailed({
-    localProductId: productRef.id,
-    localVariantId: defaultVariantId,
-    title: productDoc.title,
-    description: productDoc.longDescription,
-    price: defaultVariantDoc.priceCents / 100,
-    sku: defaultVariantDoc.sku,
-    status: productDoc.status
+  const product = await getAdminEditableProduct(productRef.id);
+  if (!product) {
+    return NextResponse.json({ error: "Product not found after creation." }, { status: 404 });
+  }
+
+  const shopifySync = await syncProductStatusToShopify({
+    productId: productRef.id,
+    product
+  });
+  revalidateShopCatalog({
+    currentProduct: product
   });
 
   return NextResponse.json({

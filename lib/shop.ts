@@ -2,8 +2,12 @@ import { collections, glassTypes, occasions, shopCategories } from "@/lib/data/p
 import type { CollectionSlug, Product, ShopCategorySlug } from "@/lib/types";
 import { getStorefrontProducts } from "@/lib/server/catalog-source";
 
+export function isProductFeatured(product: Product) {
+  return product.featured;
+}
+
 export async function getFeaturedProducts(limit = 8) {
-  return (await getStorefrontProducts()).filter((product) => product.featured).slice(0, limit);
+  return (await getStorefrontProducts()).filter(isProductFeatured).slice(0, limit);
 }
 
 export async function getProductsByCollection(slug: CollectionSlug) {

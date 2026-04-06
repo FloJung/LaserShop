@@ -1,7 +1,9 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
+import { normalizeLegacyProductImage } from "@/lib/server/product-image-normalization";
 import { updateCashflow } from "@/lib/server/cashflow";
 import { getStoredShopifyAccessToken } from "@/lib/server/shopify-auth";
 import type {
@@ -39,6 +41,45 @@ type LocalProductSyncInput = {
   status?: "draft" | "active" | "archived";
 };
 
+type LocalProductImageSyncInput = {
+  id: string;
+  productId: string;
+  storagePath: string;
+  publicUrl: string;
+  altText: string;
+  sortOrder: number;
+  isPrimary: boolean;
+  shopifyImageId?: string;
+};
+
+type ShopifyImageRecord = {
+  id?: number;
+  src?: string;
+  alt?: string;
+  position?: number;
+};
+
+type ShopifyProductImagesResponse = {
+  image?: ShopifyImageRecord;
+  images?: ShopifyImageRecord[];
+  error?: string;
+  errors?: unknown;
+};
+
+type ShopifyProductImageSyncSummary = {
+  success: boolean;
+  syncedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  deletedCount: number;
+  failedCount: number;
+  failedImageIds: string[];
+  errors: Array<{
+    imageId: string;
+    message: string;
+  }>;
+};
+
 export type ShopifyAccessTokenSource = "env" | "memory";
 
 export type ShopifyProductSyncResult =
@@ -53,6 +94,7 @@ export type ShopifyProductSyncResult =
       mappingWritten: boolean;
       mappingPath?: string;
       tokenSource: ShopifyAccessTokenSource;
+      imageSync?: ShopifyProductImageSyncSummary;
     }
   | {
       success: false;
@@ -64,6 +106,7 @@ export type ShopifyProductSyncResult =
       shopifyError?: string;
       mappingWritten: false;
       tokenSource?: ShopifyAccessTokenSource;
+      imageSync?: ShopifyProductImageSyncSummary;
     };
 
 type ShopifyProductRecord = {
@@ -755,9 +798,371 @@ async function syncProductToShopifyOrThrow(productData: LocalProductSyncInput) {
   };
 }
 
+async function readLocalProductImagesForSync(localProductId: string) {
+  const snapshot = await getAdminDb().collection("products").doc(localProductId).collection("images").get();
+
+  return snapshot.docs
+    .flatMap((doc) => {
+      const image = normalizeLegacyProductImage(
+        {
+          source: "shopify",
+          productId: localProductId,
+          imageId: doc.id
+        },
+        doc.data()
+      );
+
+      if (!image) {
+        return [];
+      }
+
+      return {
+        id: doc.id,
+        productId: image.productId || localProductId,
+        storagePath: image.storagePath,
+        publicUrl: image.publicUrl ?? image.url!,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        shopifyImageId: image.shopifyImageId
+      } satisfies LocalProductImageSyncInput;
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+}
+
+async function updateLocalProductImageSyncState(input: {
+  localProductId: string;
+  updates: Array<{
+    imageId: string;
+    syncStatus: "pending" | "synced" | "error";
+    shopifyImageId?: string;
+    syncError?: string;
+  }>;
+}) {
+  if (input.updates.length === 0) {
+    return;
+  }
+
+  const timestamp = nowIso();
+  const productRef = getAdminDb().collection("products").doc(input.localProductId);
+  const batch = getAdminDb().batch();
+
+  for (const update of input.updates) {
+    batch.set(
+      productRef.collection("images").doc(update.imageId),
+      {
+        syncStatus: update.syncStatus,
+        ...(update.shopifyImageId ? { shopifyImageId: update.shopifyImageId } : {}),
+        syncError: update.syncError ? update.syncError : FieldValue.delete(),
+        updatedAt: timestamp
+      },
+      { merge: true }
+    );
+  }
+
+  await batch.commit();
+}
+
+async function listShopifyProductImages(shopifyProductId: string) {
+  const response = await fetch(
+    `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/products/${shopifyProductId}/images.json`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "X-Shopify-Access-Token": getShopifyAccessToken()
+      },
+      cache: "no-store"
+    }
+  );
+
+  const payload = await parseJsonResponse<ShopifyProductImagesResponse>(response);
+  if (!response.ok) {
+    const shopifyError = extractShopifyError(payload);
+    throw new ShopifyApiRequestError(
+      `Shopify image list failed (${response.status}): ${shopifyError}`,
+      response.status,
+      shopifyError
+    );
+  }
+
+  return payload?.images ?? [];
+}
+
+async function createShopifyProductImage(input: {
+  shopifyProductId: string;
+  src: string;
+  alt: string;
+  position: number;
+}) {
+  const response = await fetch(
+    `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/products/${input.shopifyProductId}/images.json`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": getShopifyAccessToken()
+      },
+      body: JSON.stringify({
+        image: {
+          src: input.src,
+          alt: input.alt,
+          position: input.position
+        }
+      }),
+      cache: "no-store"
+    }
+  );
+
+  const payload = await parseJsonResponse<ShopifyProductImagesResponse>(response);
+  if (!response.ok || !payload?.image?.id) {
+    const shopifyError = extractShopifyError(payload);
+    throw new ShopifyApiRequestError(
+      `Shopify image create failed (${response.status}): ${shopifyError}`,
+      response.status,
+      shopifyError
+    );
+  }
+
+  return payload.image;
+}
+
+async function updateShopifyProductImage(input: {
+  shopifyProductId: string;
+  shopifyImageId: string;
+  src: string;
+  alt: string;
+  position: number;
+}) {
+  const response = await fetch(
+    `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/products/${input.shopifyProductId}/images/${input.shopifyImageId}.json`,
+    {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": getShopifyAccessToken()
+      },
+      body: JSON.stringify({
+        image: {
+          id: Number(input.shopifyImageId),
+          src: input.src,
+          alt: input.alt,
+          position: input.position
+        }
+      }),
+      cache: "no-store"
+    }
+  );
+
+  const payload = await parseJsonResponse<ShopifyProductImagesResponse>(response);
+  if (!response.ok || !payload?.image?.id) {
+    const shopifyError = extractShopifyError(payload);
+    throw new ShopifyApiRequestError(
+      `Shopify image update failed (${response.status}): ${shopifyError}`,
+      response.status,
+      shopifyError
+    );
+  }
+
+  return payload.image;
+}
+
+async function deleteShopifyProductImage(input: { shopifyProductId: string; shopifyImageId: string }) {
+  const response = await fetch(
+    `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/products/${input.shopifyProductId}/images/${input.shopifyImageId}.json`,
+    {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+        "X-Shopify-Access-Token": getShopifyAccessToken()
+      },
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) {
+    const payload = await parseJsonResponse<ShopifyProductImagesResponse>(response);
+    const shopifyError = extractShopifyError(payload);
+    throw new ShopifyApiRequestError(
+      `Shopify image delete failed (${response.status}): ${shopifyError}`,
+      response.status,
+      shopifyError
+    );
+  }
+}
+
+export async function deleteShopifyProductImageForLocalProduct(input: {
+  localProductId: string;
+  shopifyImageId: string;
+}) {
+  const mapping = await getShopifyProductMapping(input.localProductId);
+  if (!mapping?.shopifyProductId) {
+    return { deleted: false, reason: "no_product_mapping" as const };
+  }
+
+  await deleteShopifyProductImage({
+    shopifyProductId: mapping.shopifyProductId,
+    shopifyImageId: input.shopifyImageId
+  });
+
+  return { deleted: true as const };
+}
+
+function matchesLocalProductImageSrc(src: string | undefined, localProductId: string) {
+  if (!src) {
+    return false;
+  }
+
+  return src.includes(`/${localProductId}%2Fimages%2F`) || src.includes(`/${localProductId}/images/`);
+}
+
+async function syncProductImagesToShopify(input: {
+  localProductId: string;
+  shopifyProductId: string;
+}): Promise<ShopifyProductImageSyncSummary> {
+  const localImages = await readLocalProductImagesForSync(input.localProductId);
+  const remoteImages = await listShopifyProductImages(input.shopifyProductId);
+  const remoteById = new Map(remoteImages.map((image) => [String(image.id), image]));
+  const localSrcs = new Set(localImages.map((image) => image.publicUrl));
+  const updates: Array<{
+    imageId: string;
+    syncStatus: "pending" | "synced" | "error";
+    shopifyImageId?: string;
+    syncError?: string;
+  }> = [];
+  const usedRemoteIds = new Set<string>();
+  let createdCount = 0;
+  let updatedCount = 0;
+  let deletedCount = 0;
+  const errors: Array<{ imageId: string; message: string }> = [];
+
+  for (const [index, image] of localImages.entries()) {
+    try {
+      const knownRemote =
+        (image.shopifyImageId ? remoteById.get(String(image.shopifyImageId)) : undefined) ??
+        remoteImages.find((remote) => remote.src === image.publicUrl && !usedRemoteIds.has(String(remote.id)));
+
+      let syncedImage: ShopifyImageRecord;
+
+      if (knownRemote?.id) {
+        usedRemoteIds.add(String(knownRemote.id));
+        syncedImage = await updateShopifyProductImage({
+          shopifyProductId: input.shopifyProductId,
+          shopifyImageId: String(knownRemote.id),
+          src: image.publicUrl,
+          alt: image.altText,
+          position: index + 1
+        });
+        updatedCount += 1;
+      } else {
+        syncedImage = await createShopifyProductImage({
+          shopifyProductId: input.shopifyProductId,
+          src: image.publicUrl,
+          alt: image.altText,
+          position: index + 1
+        });
+        createdCount += 1;
+      }
+
+      if (syncedImage.id) {
+        usedRemoteIds.add(String(syncedImage.id));
+      }
+
+      updates.push({
+        imageId: image.id,
+        syncStatus: "synced",
+        shopifyImageId: syncedImage.id ? String(syncedImage.id) : image.shopifyImageId
+      });
+    } catch (error) {
+      errors.push({
+        imageId: image.id,
+        message: getErrorMessage(error)
+      });
+      updates.push({
+        imageId: image.id,
+        syncStatus: "error",
+        syncError: getErrorMessage(error)
+      });
+    }
+  }
+
+  for (const remoteImage of remoteImages) {
+    const remoteId = remoteImage.id ? String(remoteImage.id) : null;
+    if (!remoteId || usedRemoteIds.has(remoteId)) {
+      continue;
+    }
+
+    if (!matchesLocalProductImageSrc(remoteImage.src, input.localProductId)) {
+      continue;
+    }
+
+    if (remoteImage.src && localSrcs.has(remoteImage.src)) {
+      continue;
+    }
+
+    try {
+      await deleteShopifyProductImage({
+        shopifyProductId: input.shopifyProductId,
+        shopifyImageId: remoteId
+      });
+      deletedCount += 1;
+    } catch (error) {
+      errors.push({
+        imageId: `remote:${remoteId}`,
+        message: getErrorMessage(error)
+      });
+    }
+  }
+
+  await updateLocalProductImageSyncState({
+    localProductId: input.localProductId,
+    updates
+  });
+
+  return {
+    success: errors.length === 0,
+    syncedCount: updates.filter((update) => update.syncStatus === "synced").length,
+    createdCount,
+    updatedCount,
+    deletedCount,
+    failedCount: errors.length,
+    failedImageIds: errors.map((error) => error.imageId),
+    errors
+  };
+}
+
 export async function syncProductToShopifyDetailed(productData: LocalProductSyncInput): Promise<ShopifyProductSyncResult> {
   try {
     const result = await syncProductToShopifyOrThrow(productData);
+    const imageSync = await syncProductImagesToShopify({
+      localProductId: productData.localProductId,
+      shopifyProductId: result.shopifyProductId
+    });
+
+    if (!imageSync.success) {
+      console.error("[shopify] product image sync failed:", {
+        action: result.action,
+        localProductId: result.localProductId,
+        shopifyProductId: result.shopifyProductId,
+        failedCount: imageSync.failedCount,
+        failedImageIds: imageSync.failedImageIds
+      });
+
+      return {
+        success: false,
+        action: result.action,
+        localProductId: result.localProductId,
+        ...(result.localVariantId ? { localVariantId: result.localVariantId } : {}),
+        responseStatus: result.responseStatus,
+        error: `Shopify-Produktsync abgeschlossen, aber ${imageSync.failedCount} Bild-Upload(s) sind fehlgeschlagen.`,
+        mappingWritten: false,
+        tokenSource: result.tokenSource,
+        imageSync
+      };
+    }
+
     logShopifyProductSync("completed", {
       action: result.action,
       localProductId: result.localProductId,
@@ -767,7 +1172,8 @@ export async function syncProductToShopifyDetailed(productData: LocalProductSync
       shopifyVariantId: result.shopifyVariantId ?? null,
       mappingWritten: result.mappingWritten,
       mappingPath: result.mappingPath ?? null,
-      tokenSource: result.tokenSource
+      tokenSource: result.tokenSource,
+      imageSync
     });
 
     return {
@@ -780,7 +1186,8 @@ export async function syncProductToShopifyDetailed(productData: LocalProductSync
       ...(result.shopifyVariantId ? { shopifyVariantId: result.shopifyVariantId } : {}),
       mappingWritten: result.mappingWritten,
       ...(result.mappingPath ? { mappingPath: result.mappingPath } : {}),
-      tokenSource: result.tokenSource
+      tokenSource: result.tokenSource,
+      imageSync
     };
   } catch (error) {
     const responseStatus = error instanceof ShopifyApiRequestError ? error.responseStatus : undefined;

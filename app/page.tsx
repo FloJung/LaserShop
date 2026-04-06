@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
-import { CollectionCard } from "@/components/collection-card";
+import { DesignWorldGrid } from "@/components/design-world-grid";
 import { Faq } from "@/components/faq";
 import { ProductCard } from "@/components/product-card";
 import { SectionHeading } from "@/components/section-heading";
@@ -73,11 +73,7 @@ export default async function HomePage() {
             title="Kuratierte Designer-Kollektionen"
             description="Drei eigenstaendige Collection-Bereiche innerhalb derselben Marke für schnelle Orientierung und klares Styling."
           />
-          <div className="grid gap-5">
-            {collections.map((collection) => (
-              <CollectionCard key={collection.slug} collection={collection} />
-            ))}
-          </div>
+          <DesignWorldGrid collections={collections} />
         </div>
       </section>
 

@@ -8,7 +8,9 @@ import {
   OPTION_PRICING_MODES,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
+  PRODUCT_IMAGE_SYNC_STATUSES,
   PRODUCT_OPTION_TYPES,
+  PRODUCT_SHOPIFY_SYNC_STATUSES,
   PRODUCT_STATUSES,
   PRODUCTION_STATUSES,
   STOCK_MODES,
@@ -74,6 +76,8 @@ export const stockModeSchema = z.enum(STOCK_MODES);
 export const productOptionTypeSchema = z.enum(PRODUCT_OPTION_TYPES);
 export const optionPricingModeSchema = z.enum(OPTION_PRICING_MODES);
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
+export const productImageSyncStatusSchema = z.enum(PRODUCT_IMAGE_SYNC_STATUSES);
+export const productShopifySyncStatusSchema = z.enum(PRODUCT_SHOPIFY_SYNC_STATUSES);
 export const orderStatusSchema = z.enum(ORDER_STATUSES);
 export const productionStatusSchema = z.enum(PRODUCTION_STATUSES);
 export const uploadReviewStatusSchema = z.enum(UPLOAD_REVIEW_STATUSES);
@@ -98,6 +102,10 @@ export const productDocumentSchema = z.object({
   rating: z.number().min(0).max(5),
   reviews: z.number().int().min(0),
   status: productStatusSchema,
+  shopifySyncStatus: productShopifySyncStatusSchema.optional(),
+  shopifySyncError: z.string().trim().max(500).optional(),
+  shopifyLastSyncedAt: z.string().optional(),
+  shopifyLastAttemptedAt: z.string().optional(),
   isPersonalizable: z.boolean(),
   defaultVariantId: z.string().trim().max(120).optional(),
   createdAt: z.string(),
@@ -120,14 +128,28 @@ export const productVariantDocumentSchema = z.object({
   updatedAt: z.string()
 });
 
-export const productImageDocumentSchema = z.object({
+export const productImageDocumentSchema = z
+  .object({
+  productId: z.string().trim().min(1).max(120),
+  originalFilename: z.string().trim().max(255).optional(),
+  mimeType: z.string().trim().max(120).optional(),
+  fileSize: z.number().int().positive().optional(),
   storagePath: z.string().trim().min(1).max(500),
-  url: z.string().trim().min(1).max(2_000),
+  url: z.string().trim().min(1).max(2_000).optional(),
+  publicUrl: z.string().trim().min(1).max(2_000).optional(),
   altText: z.string().trim().min(1).max(180),
   sortOrder: z.number().int().min(0).max(1_000),
   isPrimary: z.boolean(),
-  createdAt: z.string()
-});
+  syncStatus: productImageSyncStatusSchema.optional(),
+  syncError: z.string().trim().max(500).optional(),
+  shopifyImageId: z.string().trim().max(120).optional(),
+  createdAt: z.string(),
+  updatedAt: z.string().optional()
+})
+  .refine((image) => Boolean(image.publicUrl ?? image.url), {
+    message: "Product image requires either publicUrl or url."
+  })
+  ;
 
 export const productOptionDocumentSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -158,9 +180,8 @@ export const editableProductVariantSchema = productVariantDocumentSchema.extend(
   id: z.string().trim().min(1).max(120)
 });
 
-export const editableProductImageSchema = productImageDocumentSchema.extend({
-  id: z.string().trim().min(1).max(120),
-  storagePath: z.string().trim().max(500).optional()
+export const editableProductImageSchema = productImageDocumentSchema.safeExtend({
+  id: z.string().trim().min(1).max(120)
 });
 
 export const editableProductOptionValueSchema = productOptionValueDocumentSchema.extend({
@@ -176,7 +197,11 @@ export const editableProductPayloadSchema = productDocumentSchema
   .omit({
     createdAt: true,
     updatedAt: true,
-    defaultVariantId: true
+    defaultVariantId: true,
+    shopifySyncStatus: true,
+    shopifySyncError: true,
+    shopifyLastSyncedAt: true,
+    shopifyLastAttemptedAt: true
   })
   .extend({
     defaultVariantId: z.string().trim().max(120).optional(),

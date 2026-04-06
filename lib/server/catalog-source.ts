@@ -3,11 +3,13 @@ import "server-only";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { unstable_noStore as noStore } from "next/cache";
 import { getAdminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
+import { normalizeLegacyProductImage } from "@/lib/server/product-image-normalization";
 import { products as staticProducts } from "@/lib/data/products";
+import { isProductVisibleInShop } from "@/lib/server/product-publication";
+import { validateProductForPublishing } from "@/lib/server/product-publication";
 import type { Product } from "@/lib/types";
 import {
   productDocumentSchema,
-  productImageDocumentSchema,
   productOptionDocumentSchema,
   productOptionValueDocumentSchema,
   productVariantDocumentSchema
@@ -169,18 +171,31 @@ async function readVariants(productId: string) {
 async function readImages(productId: string) {
   const snapshot = await getAdminDb().collection("products").doc(productId).collection("images").get();
   return snapshot.docs
-    .map((doc) => ({
-      id: doc.id,
-      data: productImageDocumentSchema.parse(doc.data())
-    }))
-    .sort((left, right) => left.data.sortOrder - right.data.sortOrder)
-    .map((entry) => ({
-      id: entry.id,
-      url: entry.data.url,
-      altText: entry.data.altText,
-      sortOrder: entry.data.sortOrder,
-      isPrimary: entry.data.isPrimary
-    }));
+    .flatMap((doc) => {
+      const image = normalizeLegacyProductImage(
+        {
+          source: "storefront",
+          productId,
+          imageId: doc.id
+        },
+        doc.data()
+      );
+
+      if (!image) {
+        return [];
+      }
+
+      return [
+        {
+          id: doc.id,
+          url: image.publicUrl ?? image.url!,
+          altText: image.altText,
+          sortOrder: image.sortOrder,
+          isPrimary: image.isPrimary
+        }
+      ];
+    })
+    .sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
 async function readOptions(productId: string) {
@@ -227,8 +242,25 @@ function valuesOrNoValuesAllowed(option: StorefrontOption) {
 }
 
 async function mapProductDoc(doc: QueryDocumentSnapshot) {
-  const productDoc = productDocumentSchema.parse(doc.data());
-  if (productDoc.status !== "active") {
+  const productParse = productDocumentSchema.safeParse(doc.data());
+  if (!productParse.success) {
+    console.warn("[catalog] product skipped: invalid product document", {
+      productId: doc.id,
+      issues: productParse.error.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message
+      }))
+    });
+    return null;
+  }
+
+  const productDoc = productParse.data;
+  if (!isProductVisibleInShop(productDoc.status)) {
+    console.info("[catalog] product excluded from storefront", {
+      productId: doc.id,
+      reason: "status_not_visible",
+      status: productDoc.status
+    });
     return null;
   }
 
@@ -238,7 +270,26 @@ async function mapProductDoc(doc: QueryDocumentSnapshot) {
     readOptions(doc.id)
   ]);
 
-  if (variants.length === 0) {
+  const publicationValidation = validateProductForPublishing({
+    title: productDoc.title,
+    slug: productDoc.slug,
+    shortDescription: productDoc.shortDescription,
+    category: productDoc.category,
+    shopCategory: productDoc.shopCategory,
+    collection: productDoc.collection,
+    collectionSlug: productDoc.collectionSlug,
+    status: productDoc.status,
+    defaultVariantId: productDoc.defaultVariantId,
+    variants,
+    images
+  });
+
+  if (!publicationValidation.isPublishable) {
+    console.info("[catalog] product excluded from storefront", {
+      productId: doc.id,
+      reason: "not_publishable",
+      issues: publicationValidation.issues.map((issue) => issue.message)
+    });
     return null;
   }
 
@@ -267,7 +318,21 @@ async function mapProductDoc(doc: QueryDocumentSnapshot) {
 
 async function readFirebaseCatalog() {
   const snapshot = await getAdminDb().collection("products").where("status", "==", "active").get();
-  const entries = (await Promise.all(snapshot.docs.map(mapProductDoc))).filter((entry) => entry !== null);
+  const entries = (
+    await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        try {
+          return await mapProductDoc(doc);
+        } catch (error) {
+          console.warn("[catalog] product skipped after unexpected storefront mapping error", {
+            productId: doc.id,
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+          return null;
+        }
+      })
+    )
+  ).filter((entry) => entry !== null);
   const storefrontEntries = entries.filter((entry) => entry.product.id !== "gu-custom");
 
   return {

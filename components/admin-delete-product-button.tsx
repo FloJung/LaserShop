@@ -1,20 +1,32 @@
 "use client";
 
+import clsx from "clsx";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type AdminDeleteProductButtonProps = {
   productId: string;
   productTitle: string;
+  compact?: boolean;
+  onBeforeDelete?: () => boolean;
 };
 
-export function AdminDeleteProductButton({ productId, productTitle }: AdminDeleteProductButtonProps) {
+export function AdminDeleteProductButton({
+  productId,
+  productTitle,
+  compact = false,
+  onBeforeDelete
+}: AdminDeleteProductButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleDelete() {
-    const confirmed = window.confirm(`Produkt "${productTitle}" wirklich löschen?`);
+    if (onBeforeDelete && !onBeforeDelete()) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Produkt "${productTitle}" wirklich loeschen?`);
     if (!confirmed) {
       return;
     }
@@ -29,7 +41,7 @@ export function AdminDeleteProductButton({ productId, productTitle }: AdminDelet
 
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
       if (!response.ok) {
-        setError(payload?.error ?? "Produkt konnte nicht gelöscht werden.");
+        setError(payload?.error ?? "Produkt konnte nicht geloescht werden.");
         return;
       }
 
@@ -48,11 +60,11 @@ export function AdminDeleteProductButton({ productId, productTitle }: AdminDelet
           void handleDelete();
         }}
         disabled={isLoading}
-        className="admin-action-danger"
+        className={clsx("admin-action-danger", compact && "!px-3.5 !py-2.5 !text-sm")}
       >
         {isLoading ? "Loeschen..." : "Produkt loeschen"}
       </button>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="text-xs font-medium text-red-600">{error}</p> : null}
     </div>
   );
 }

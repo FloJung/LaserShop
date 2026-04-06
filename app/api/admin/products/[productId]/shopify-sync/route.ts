@@ -1,32 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAdminEditableProduct } from "@/lib/server/admin-products";
 import { getCurrentSession } from "@/lib/server/admin-session";
-import { getShopifyProductMappingSummary, syncProductToShopifyDetailed } from "@/lib/server/shopify";
+import {
+  getProductPublicationErrorMessage,
+  syncProductStatusToShopify,
+  validateProductForPublishing
+} from "@/lib/server/product-publication";
+import { getShopifyProductMappingSummary } from "@/lib/server/shopify";
 import { isAdminRole } from "@/shared/firebase/roles";
-
-function getShopifySyncPayload(
-  productId: string,
-  product: NonNullable<Awaited<ReturnType<typeof getAdminEditableProduct>>>
-) {
-  const preferredVariant =
-    product.variants.find((variant) => variant.id === product.defaultVariantId) ??
-    product.variants.find((variant) => variant.isActive) ??
-    product.variants[0];
-
-  if (!preferredVariant) {
-    throw new Error(`Product ${productId} has no variants.`);
-  }
-
-  return {
-    localProductId: productId,
-    localVariantId: preferredVariant.id,
-    title: product.title,
-    description: product.longDescription || product.shortDescription,
-    price: preferredVariant.priceCents / 100,
-    sku: preferredVariant.sku,
-    status: product.status
-  } as const;
-}
 
 async function requireAdminRequest() {
   const session = await getCurrentSession();
@@ -59,8 +40,27 @@ export async function POST(_: Request, context: { params: Promise<{ productId: s
       defaultVariantId: product.defaultVariantId ?? null
     });
 
-    const shopifySync = await syncProductToShopifyDetailed(getShopifySyncPayload(productId, product));
+    if (product.status === "active") {
+      const publicationValidation = validateProductForPublishing(product);
+      if (!publicationValidation.isPublishable) {
+        return NextResponse.json(
+          {
+            success: false,
+            productId,
+            error: getProductPublicationErrorMessage(publicationValidation),
+            validationIssues: publicationValidation.issues
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const shopifySync = await syncProductStatusToShopify({
+      productId,
+      product
+    });
     const mapping = await getShopifyProductMappingSummary(productId);
+    const refreshedProduct = await getAdminEditableProduct(productId);
 
     console.log("[admin] shopify product sync completed:", {
       productId,
@@ -88,6 +88,8 @@ export async function POST(_: Request, context: { params: Promise<{ productId: s
         mappingExists: Boolean(mapping),
         mappingPath: mapping?.mappingPath ?? ("mappingPath" in shopifySync ? shopifySync.mappingPath ?? null : null),
         mapping,
+        images: refreshedProduct?.images ?? product.images,
+        product: refreshedProduct,
         shopifySync
       },
       { status: shopifySync.success ? 200 : 502 }

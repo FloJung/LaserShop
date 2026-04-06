@@ -3,7 +3,9 @@ import type {
   OPTION_PRICING_MODES,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
+  PRODUCT_IMAGE_SYNC_STATUSES,
   PRODUCT_OPTION_TYPES,
+  PRODUCT_SHOPIFY_SYNC_STATUSES,
   PRODUCT_STATUSES,
   PRODUCTION_STATUSES,
   STOCK_MODES,
@@ -16,6 +18,8 @@ export type StockMode = (typeof STOCK_MODES)[number];
 export type ProductOptionType = (typeof PRODUCT_OPTION_TYPES)[number];
 export type OptionPricingMode = (typeof OPTION_PRICING_MODES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type ProductImageSyncStatus = (typeof PRODUCT_IMAGE_SYNC_STATUSES)[number];
+export type ProductShopifySyncStatus = (typeof PRODUCT_SHOPIFY_SYNC_STATUSES)[number];
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type ProductionStatus = (typeof PRODUCTION_STATUSES)[number];
 export type UploadReviewStatus = (typeof UPLOAD_REVIEW_STATUSES)[number];
@@ -44,6 +48,10 @@ export type ProductDocument = {
   rating: number;
   reviews: number;
   status: ProductStatus;
+  shopifySyncStatus?: ProductShopifySyncStatus;
+  shopifySyncError?: string;
+  shopifyLastSyncedAt?: TimestampLike;
+  shopifyLastAttemptedAt?: TimestampLike;
   isPersonalizable: boolean;
   defaultVariantId?: string;
   createdAt: TimestampLike;
@@ -67,12 +75,21 @@ export type ProductVariantDocument = {
 };
 
 export type ProductImageDocument = {
+  productId: string;
+  originalFilename?: string;
+  mimeType?: string;
+  fileSize?: number;
   storagePath: string;
-  url: string;
+  url?: string;
+  publicUrl?: string;
   altText: string;
   sortOrder: number;
   isPrimary: boolean;
+  syncStatus?: ProductImageSyncStatus;
+  syncError?: string;
+  shopifyImageId?: string;
   createdAt: TimestampLike;
+  updatedAt?: TimestampLike;
 };
 
 export type ProductOptionDocument = {

@@ -38,11 +38,11 @@ export function AdminCreateProductButton() {
           void handleCreate();
         }}
         disabled={isLoading}
-        className="inline-flex items-center justify-center rounded-full bg-[var(--brand)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--brand-strong)] disabled:cursor-not-allowed disabled:opacity-70"
+        className="admin-action-primary !px-4 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-70"
       >
         {isLoading ? "Produkt wird angelegt..." : "Neues Produkt"}
       </button>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="text-xs font-medium text-red-600">{error}</p> : null}
     </div>
   );
 }
