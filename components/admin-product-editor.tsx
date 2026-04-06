@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Clock3,
   ImageIcon,
   Layers3,
   LoaderCircle,
@@ -16,8 +15,7 @@ import {
   SlidersHorizontal,
   Star,
   Store,
-  Trash2,
-  TriangleAlert
+  Trash2
 } from "lucide-react";
 import {
   type InputHTMLAttributes,
@@ -228,13 +226,7 @@ type FeaturedUpdateFailure = {
 
 type FeaturedUpdateResponse = FeaturedUpdateSuccess | FeaturedUpdateFailure;
 
-type SectionLink = {
-  id: string;
-  label: string;
-  count?: string;
-};
-
-const compactFieldClassName = "admin-field !min-h-[2.75rem] !rounded-xl !px-3 !py-2.5 !text-sm !shadow-none";
+const compactFieldClassName = "admin-field !min-h-[2rem] !rounded-none !px-2 !py-1.5 !text-sm !shadow-none";
 const compactTextareaClassName = `${compactFieldClassName} min-h-0 resize-none overflow-hidden leading-6`;
 
 function createId(prefix: string) {
@@ -310,30 +302,6 @@ function formatValidationIssueMessage(
   return issues.map((issue) => issue.message).join(" ");
 }
 
-function getStatusLabel(status: EditableProduct["status"]) {
-  if (status === "active") {
-    return "Active";
-  }
-
-  if (status === "archived") {
-    return "Archived";
-  }
-
-  return "Draft";
-}
-
-function getStatusTone(status: EditableProduct["status"]) {
-  if (status === "active") {
-    return "success";
-  }
-
-  if (status === "archived") {
-    return "neutral";
-  }
-
-  return "warning";
-}
-
 function getStockSummary(variant: EditableVariant) {
   if (variant.stockMode === "tracked") {
     return `${variant.stockQuantity ?? 0} auf Lager`;
@@ -403,11 +371,11 @@ function MetaPill({
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
-        tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
-        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
-        tone === "danger" && "border-rose-200 bg-rose-50 text-rose-700",
-        tone === "neutral" && "border-slate-200 bg-white/80 text-slate-600"
+        "inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
+        tone === "success" && "border-emerald-300 bg-emerald-50 text-emerald-700",
+        tone === "warning" && "border-amber-300 bg-amber-50 text-amber-700",
+        tone === "danger" && "border-rose-300 bg-rose-50 text-rose-700",
+        tone === "neutral" && "border-slate-300 bg-white text-slate-600"
       )}
     >
       {children}
@@ -439,10 +407,10 @@ function Field({
   return (
     <label className={clsx("grid gap-1.5", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">{label}</span>
         {publicationTone ? (
           <MetaPill tone={publicationTone}>
-            Pflicht fuer active
+            required
           </MetaPill>
         ) : null}
       </div>
@@ -522,29 +490,19 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-28 admin-panel rounded-[1.5rem] p-4 sm:p-5">
-      <div className="mb-4 flex flex-col gap-3 border-b border-[rgba(148,163,184,0.14)] pb-4 sm:flex-row sm:items-start sm:justify-between">
+    <section id={id} className="scroll-mt-28 admin-panel">
+      <div className="mb-2 flex flex-col gap-1 border-b border-slate-300 pb-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {icon}
-            <h2 className="text-lg font-semibold tracking-[-0.02em] text-slate-950">{title}</h2>
+            <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
           </div>
-          {hint ? <p className="mt-1 text-sm text-slate-500">{hint}</p> : null}
+          {hint ? <p className="mt-0.5 text-xs text-slate-500">{hint}</p> : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {children}
     </section>
-  );
-}
-
-function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <article className="admin-subpanel rounded-[1.25rem] px-3.5 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1.5 text-lg font-semibold tracking-[-0.02em] text-slate-950">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{hint}</p>
-    </article>
   );
 }
 
@@ -557,22 +515,22 @@ function PublicationRequirementCard({
     <a
       href={`#${item.sectionId}`}
       className={clsx(
-        "rounded-[1.1rem] border px-3.5 py-3 transition hover:bg-white/90",
-        item.status === "complete" && "border-emerald-200 bg-emerald-50/55",
-        item.status === "incomplete" && "border-amber-200 bg-amber-50/55",
-        item.status === "missing" && "border-rose-200 bg-rose-50/55"
+        "border px-2 py-1.5",
+        item.status === "complete" && "border-emerald-300 bg-emerald-50/55",
+        item.status === "incomplete" && "border-amber-300 bg-amber-50/55",
+        item.status === "missing" && "border-rose-300 bg-rose-50/55"
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-950">{item.label}</p>
-          <p className="mt-1 text-xs text-slate-500">{item.description}</p>
+          <p className="text-xs font-semibold text-slate-950">{item.label}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">{item.description}</p>
         </div>
         <MetaPill tone={getPublicationStatusTone(item.status)}>{getPublicationStatusLabel(item.status)}</MetaPill>
       </div>
       <p
         className={clsx(
-          "mt-3 text-xs leading-5",
+          "mt-1 text-[11px] leading-4",
           item.status === "complete"
             ? "text-emerald-700"
             : item.status === "incomplete"
@@ -596,11 +554,11 @@ function PublicationSectionSummary({
   extraIssue?: string;
 }) {
   return (
-    <div className="mb-4 rounded-[1.1rem] border border-[rgba(148,163,184,0.18)] bg-white/72 px-3.5 py-3">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+    <div className="mb-2 border border-slate-300 bg-slate-50 px-2 py-1.5">
+      <div className="flex flex-col gap-1 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-950">{title}</p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="text-xs font-semibold text-slate-950">{title}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
             Diese Punkte werden fuer die Aktivierung auf `active` live geprueft.
           </p>
         </div>
@@ -612,32 +570,8 @@ function PublicationSectionSummary({
           ))}
         </div>
       </div>
-      {extraIssue ? <p className="mt-3 text-xs text-amber-700">Zusaetzlicher Backend-Check: {extraIssue}</p> : null}
+      {extraIssue ? <p className="mt-1 text-[11px] text-amber-700">Zusaetzlicher Backend-Check: {extraIssue}</p> : null}
     </div>
-  );
-}
-
-function SidebarNav({ sections }: { sections: SectionLink[] }) {
-  return (
-    <nav className="admin-panel rounded-[1.5rem] p-4">
-      <p className="text-sm font-semibold text-slate-950">Bereiche</p>
-      <div className="mt-3 space-y-1">
-        {sections.map((section) => (
-          <a
-            key={section.id}
-            href={`#${section.id}`}
-            className="flex items-center justify-between rounded-xl px-3 py-2 text-sm text-slate-600 transition hover:bg-white/80 hover:text-slate-950"
-          >
-            <span>{section.label}</span>
-            {section.count ? (
-              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                {section.count}
-              </span>
-            ) : null}
-          </a>
-        ))}
-      </div>
-    </nav>
   );
 }
 
@@ -969,23 +903,11 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
   const publishStatusLabel = publicationChecklist.isReady
     ? "Bereit fuer active"
     : "Nicht veroeffentlichbar";
-  const publishStatusHint = publicationChecklist.isReady
-    ? "Alle Kernanforderungen sind aktuell erfuellt."
-    : `${publicationChecklist.completedCount} von ${publicationChecklist.totalCount} Kernanforderungen sind aktuell erfuellt.`;
   const activeVariants = draft.variants.filter((variant) => variant.isActive);
   const publicationVariant =
     draft.variants.find((variant) => variant.id === draft.defaultVariantId && variant.isActive) ??
     activeVariants[0] ??
     draft.variants[0];
-  const sectionLinks: SectionLink[] = [
-    { id: "basic", label: "Basisdaten" },
-    { id: "visibility", label: "Sichtbarkeit" },
-    { id: "categorization", label: "Kategorisierung" },
-    { id: "description", label: "Beschreibung" },
-    { id: "variants", label: "Varianten", count: String(draft.variants.length) },
-    { id: "media", label: "Medien", count: String(draft.images.length) },
-    { id: "personalization", label: "Personalisierung", count: String(draft.options.length) }
-  ];
 
   function confirmNavigation(message: string) {
     if (!hasUnsavedChanges) {
@@ -1693,149 +1615,40 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
 
   return (
     <section className="section">
-      <div className="shell admin-editor space-y-4">
-        <header className="admin-panel rounded-[1.75rem] p-5 sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="shell admin-editor space-y-2">
+        <header className="admin-panel">
+          <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_150px_auto] xl:items-end">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">
-                <span>Admin Product</span>
-                <MetaPill tone={getStatusTone(draft.status)}>{getStatusLabel(draft.status)}</MetaPill>
-                <MetaPill tone={draft.featured ? "warning" : "neutral"}>
-                  {draft.featured ? "Bestseller aktiv" : "Kein Bestseller"}
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Produkt</p>
+              <p className="truncate text-base font-semibold text-slate-950">{draft.title || "Unbenanntes Produkt"}</p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                <MetaPill tone={hasUnsavedChanges ? "warning" : "success"}>
+                  {hasUnsavedChanges ? "unsaved" : "saved"}
                 </MetaPill>
-                {draft.badge ? <MetaPill>{draft.badge}</MetaPill> : null}
+                <MetaPill tone={publicationChecklist.isReady ? "success" : "warning"}>{publishStatusLabel}</MetaPill>
+                <MetaPill tone={draft.shopifySyncStatus === "error" ? "danger" : draft.shopifySyncStatus === "synced" ? "success" : "neutral"}>
+                  Shopify {draft.shopifySyncStatus ?? "offen"}
+                </MetaPill>
+                <MetaPill>ID {draft.id}</MetaPill>
+                <MetaPill>/{draft.slug || "kein-slug"}</MetaPill>
               </div>
-              <h1 className="mt-3 truncate text-2xl font-bold tracking-[-0.03em] text-slate-950 sm:text-3xl">
-                {draft.title || "Unbenanntes Produkt"}
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-500">
-                Kompakter Produkt-Editor fuer Stammdaten, Varianten, Medien und Personalisierung.
-              </p>
             </div>
 
-            <div className="grid w-full gap-3 sm:grid-cols-2 xl:w-[420px]">
-              <SummaryCard label="Varianten" value={String(draft.variants.length)} hint="Kaufbare Auspraegungen" />
-              <SummaryCard label="Medien" value={String(draft.images.length)} hint="Bilder im Produkt" />
-              <SummaryCard label="Optionen" value={String(draft.options.length)} hint="Personalisierungsfelder" />
-              <SummaryCard
-                label="Letztes Update"
-                value={formatDateTime(draft.updatedAt)}
-                hint="Zuletzt gespeichert"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="admin-meta-pill !rounded-full !px-3 !py-2 !text-xs">ID {draft.id}</span>
-            <span className="admin-meta-pill !rounded-full !px-3 !py-2 !text-xs">/{draft.slug || "kein-slug"}</span>
-            <span className="admin-meta-pill !rounded-full !px-3 !py-2 !text-xs">
-              <Clock3 className="h-3.5 w-3.5" />
-              Aktualisiert {formatDateTime(draft.updatedAt)}
-            </span>
-            <span className="admin-meta-pill !rounded-full !px-3 !py-2 !text-xs">
-              Erstellt {formatDateTime(draft.createdAt)}
-            </span>
-          </div>
-        </header>
-
-        <div className="admin-panel rounded-[1.5rem] p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <MetaPill tone={publicationChecklist.isReady ? "success" : "warning"}>
-                  {publishStatusLabel}
-                </MetaPill>
-                <MetaPill tone={publicationChecklist.isReady ? "success" : "neutral"}>
-                  {publicationChecklist.completedCount} / {publicationChecklist.totalCount} Kernanforderungen
-                </MetaPill>
-                {publicationChecklist.extraIssues.length > 0 ? (
-                  <MetaPill tone="warning">Weitere Backend-Checks offen</MetaPill>
-                ) : null}
-              </div>
-              <h2 className="mt-3 text-lg font-semibold tracking-[-0.02em] text-slate-950">
-                Veroeffentlichungsstatus
-              </h2>
-              <p className="mt-1 max-w-3xl text-sm text-slate-500">
-                {publishStatusHint} Titel, Slug, Shop-Zuordnung, aktive Variante, Preis und Bilder werden live im
-                Formular markiert.
-              </p>
-              {publicationChecklist.extraIssues.length > 0 ? (
-                <p className="mt-2 text-xs text-amber-700">
-                  Weitere aktive Backend-Checks: {publicationChecklist.extraIssues.map((issue) => issue.message).join(" ")}
-                </p>
-              ) : null}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:w-[420px]">
-              <SummaryCard
-                label="Kernanforderungen"
-                value={`${publicationChecklist.completedCount}/${publicationChecklist.totalCount}`}
-                hint={publicationChecklist.isReady ? "Active ist moeglich" : "Active wird noch blockiert"}
-              />
-              <SummaryCard label="Varianten" value={String(draft.variants.length)} hint="Kaufbare Auspraegungen" />
-              <SummaryCard label="Medien" value={String(draft.images.length)} hint="Bilder im Produkt" />
-              <SummaryCard label="Optionen" value={String(draft.options.length)} hint="Personalisierungsfelder" />
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {publicationChecklist.items.map((item) => (
-              <PublicationRequirementCard key={item.id} item={item} />
-            ))}
-          </div>
-        </div>
-
-        <div className="sticky top-3 z-30 admin-panel rounded-[1.5rem] px-4 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <MetaPill tone={hasUnsavedChanges ? "warning" : "success"}>
-                {hasUnsavedChanges ? "Ungespeicherte Aenderungen" : "Alles gespeichert"}
-              </MetaPill>
-              <MetaPill tone={publicationChecklist.isReady ? "success" : "warning"}>
-                {publishStatusLabel}
-              </MetaPill>
-              <MetaPill tone={draft.status === "active" ? "success" : "neutral"}>
-                {draft.status === "active" ? "Im Shop sichtbar" : "Im Shop verborgen"}
-              </MetaPill>
-              <MetaPill tone={draft.featured ? "warning" : "neutral"}>
-                {draft.featured ? "In Bestseller-Leiste" : "Nicht in Bestseller-Leiste"}
-              </MetaPill>
-              {syncState ? (
-                <MetaPill tone={syncState.success ? "success" : "danger"}>
-                  {syncState.success ? "Shopify-Sync ok" : "Shopify-Sync Fehler"}
-                </MetaPill>
-              ) : draft.shopifySyncStatus ? (
-                <MetaPill
-                  tone={
-                    draft.shopifySyncStatus === "synced"
-                      ? "success"
-                      : draft.shopifySyncStatus === "error"
-                        ? "danger"
-                        : "warning"
-                  }
-                >
-                  {draft.shopifySyncStatus === "synced"
-                    ? "Shopify synchronisiert"
-                    : draft.shopifySyncStatus === "error"
-                      ? "Shopify Sync-Fehler"
-                      : "Shopify Sync offen"}
-                </MetaPill>
-              ) : null}
-              {isSyncing ? (
-                <MetaPill tone="warning">
-                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                  Sync laeuft
-                </MetaPill>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={goToProductList}
-                className="admin-action-secondary !px-3.5 !py-2.5 !text-sm"
+            <Field label="Status" plain>
+              <CompactSelect
+                value={draft.status}
+                onChange={(event) => setField("status", event.target.value as EditableProduct["status"])}
               >
-                <ArrowLeft className="h-4 w-4" />
-                Zur Produktliste
+                <option value="draft">draft</option>
+                <option value="active">active</option>
+                <option value="archived">archived</option>
+              </CompactSelect>
+            </Field>
+
+            <div className="flex flex-wrap items-center gap-1">
+              <button type="button" onClick={goToProductList} className="admin-action-secondary">
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Liste
               </button>
               <button
                 type="button"
@@ -1843,23 +1656,28 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                 onClick={() => {
                   void handleShopifySync();
                 }}
-                className="admin-action-secondary !px-3.5 !py-2.5 !text-sm"
+                className="admin-action-secondary"
               >
-                <Store className="h-4 w-4" />
-                {isSyncing
-                  ? "Sync laeuft..."
-                  : hasUnsavedChanges
-                    ? "Speichern und Sync"
-                    : "Nach Shopify synchronisieren"}
+                <Store className="h-3.5 w-3.5" />
+                Sync
+              </button>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => {
+                  void handleFeaturedToggle();
+                }}
+                className="admin-action-secondary"
+              >
+                <Star className={clsx("h-3.5 w-3.5", draft.featured && "fill-current")} />
+                Featured
               </button>
               <AdminDeleteProductButton
                 compact
                 productId={draft.id}
                 productTitle={draft.title}
                 onBeforeDelete={() =>
-                  confirmNavigation(
-                    "Ungespeicherte Aenderungen verwerfen und das Produkt wirklich loeschen?"
-                  )
+                  confirmNavigation("Ungespeicherte Aenderungen verwerfen und das Produkt wirklich loeschen?")
                 }
               />
               <button
@@ -1868,22 +1686,24 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                 onClick={() => {
                   void handleSave();
                 }}
-                className="admin-action-primary !px-4 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                className="admin-action-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSaving || isPending ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
-                )}
-                {isSaving || isPending ? "Speichern..." : "Produkt speichern"}
+                {isSaving || isPending ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Speichern
               </button>
             </div>
           </div>
-        </div>
+
+          <div className="mt-2 grid gap-1 md:grid-cols-3 xl:grid-cols-6">
+            {publicationChecklist.items.map((item) => (
+              <PublicationRequirementCard key={item.id} item={item} />
+            ))}
+          </div>
+        </header>
 
         {saveError || saveMessage || taxonomyMessage || syncError || syncState ? (
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-3">
+          <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-2">
               {saveError ? <p className="admin-alert admin-alert-error">{saveError}</p> : null}
               {saveMessage ? <p className="admin-alert admin-alert-success">{saveMessage}</p> : null}
               {taxonomyMessage ? <p className="admin-alert admin-alert-success">{taxonomyMessage}</p> : null}
@@ -1921,8 +1741,7 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
           </div>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="space-y-4">
+        <div className="space-y-2">
             <SectionCard
               id="basic"
               title="Basisdaten"
@@ -1991,59 +1810,11 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
 
             <SectionCard
               id="visibility"
-              title="Sichtbarkeit und Status"
-              hint="Steuert Shop-Sichtbarkeit, Bestseller-Platzierung, Badge und redaktionelle Kennzahlen."
+              title="Shop und Status"
+              hint="Sekundaere Felder und Sync-Info."
               icon={<SlidersHorizontal className="h-4 w-4 text-slate-400" />}
-              action={
-                <MetaPill tone={draft.featured ? "warning" : "neutral"}>
-                  {draft.featured ? "Bestseller aktiv" : "Bestseller inaktiv"}
-                </MetaPill>
-              }
             >
-              <div className="grid gap-3 lg:grid-cols-4">
-                <Field label="Status">
-                  <CompactSelect
-                    value={draft.status}
-                    onChange={(event) => setField("status", event.target.value as EditableProduct["status"])}
-                  >
-                    <option value="draft">draft</option>
-                    <option value="active">active</option>
-                    <option value="archived">archived</option>
-                  </CompactSelect>
-                </Field>
-
-                <div className="rounded-xl border border-[rgba(148,163,184,0.2)] bg-white/70 px-3.5 py-3 text-sm text-slate-600 md:col-span-2 xl:col-span-2">
-                  <p className="font-semibold text-slate-900">Statuswirkung</p>
-                  <p className="mt-1">
-                    {draft.status === "active"
-                      ? "Active veroeffentlicht das Produkt im Shop und synchronisiert den Status zu Shopify."
-                      : draft.status === "draft"
-                        ? "Draft entfernt das Produkt aus Shop-Listen, Produktseiten und Shopify-Sichtbarkeit."
-                        : "Archived haelt das Produkt im Admin, blendet es aber aus dem oeffentlichen Shop aus."}
-                  </p>
-                  {draft.status === "active" ? (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Vor dem Speichern werden Titel, Slug, aktive Variante, Preis, Kategoriezuordnung und Bilder geprueft.
-                    </p>
-                  ) : null}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <MetaPill tone={publicationChecklist.isReady ? "success" : "warning"}>
-                      {publicationChecklist.completedCount}/{publicationChecklist.totalCount} Kernanforderungen erfuellt
-                    </MetaPill>
-                    {!publicationChecklist.isReady ? (
-                      <MetaPill tone="warning">Active wird aktuell blockiert</MetaPill>
-                    ) : null}
-                  </div>
-                  {draft.shopifySyncError ? (
-                    <p className="mt-2 text-xs text-rose-700">Letzter Shopify-Fehler: {draft.shopifySyncError}</p>
-                  ) : null}
-                  {draft.shopifyLastSyncedAt ? (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Letzter erfolgreicher Shopify-Sync: {formatDateTime(draft.shopifyLastSyncedAt)}
-                    </p>
-                  ) : null}
-                </div>
-
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-6">
                 <Field label="Badge">
                   <CompactInput
                     value={draft.badge ?? ""}
@@ -2071,82 +1842,24 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                     onChange={(event) => setField("reviews", Number(event.target.value))}
                   />
                 </Field>
+
+                <div className="flex items-end">
+                  <label className="flex min-h-[2rem] items-center gap-2 border border-slate-300 px-2 py-1 text-xs text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={draft.isPersonalizable}
+                      onChange={(event) => setField("isPersonalizable", event.target.checked)}
+                    />
+                    Personalisierbar
+                  </label>
+                </div>
               </div>
 
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <div className="rounded-[1.25rem] border border-[rgba(231,119,44,0.22)] bg-[linear-gradient(180deg,rgba(255,247,237,0.92),rgba(255,255,255,0.96))] px-4 py-4 shadow-[0_12px_30px_-24px_rgba(203,95,23,0.7)] md:col-span-2">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <MetaPill tone={draft.featured ? "warning" : "neutral"}>
-                          {draft.featured ? "Aktiv" : "Nicht aktiv"}
-                        </MetaPill>
-                        <MetaPill tone={draft.status === "active" ? "success" : "warning"}>
-                          {draft.status === "active" ? "Status active" : `Status ${draft.status}`}
-                        </MetaPill>
-                      </div>
-                      <p className="mt-3 text-base font-semibold text-slate-950">Bestseller / Beliebtes Produkt</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600">
-                        Diese Markierung steuert direkt den Bereich "Bestseller / Beliebte Produkte" auf der
-                        Startseite.
-                      </p>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">
-                        {draft.featured
-                          ? draft.status === "active"
-                            ? "Das Produkt ist markiert und wird aktuell auf der Startseite beruecksichtigt."
-                            : "Das Produkt ist markiert, bleibt aber unsichtbar, bis der Status auf active steht."
-                          : "Ohne Markierung erscheint das Produkt nicht in der Bestseller-Leiste."}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-stretch gap-2 lg:min-w-[260px]">
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => {
-                          void handleFeaturedToggle();
-                        }}
-                        className={clsx(
-                          "inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
-                          draft.featured
-                            ? "border border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:bg-amber-100"
-                            : "bg-[var(--brand)] text-white shadow-[0_18px_35px_-24px_rgba(203,95,23,0.9)] hover:bg-[var(--brand-strong)]"
-                        )}
-                      >
-                        {isTogglingFeatured ? (
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Star className={clsx("h-4 w-4", draft.featured && "fill-current")} />
-                        )}
-                        <span>
-                          {isTogglingFeatured
-                            ? "Speichert..."
-                            : draft.featured
-                              ? "Aus Bestsellern entfernen"
-                              : "Zu Bestsellern hinzufuegen"}
-                        </span>
-                      </button>
-                      <p className="text-center text-xs text-slate-500">
-                        Aendert nur die Bestseller-Markierung und aktualisiert die Shop-Ausgabe sofort.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <label className="flex items-start gap-3 rounded-xl border border-[rgba(148,163,184,0.2)] bg-white/70 px-3.5 py-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={draft.isPersonalizable}
-                    onChange={(event) => setField("isPersonalizable", event.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    <span className="block font-semibold text-slate-900">Personalisierbar</span>
-                    <span className="mt-1 block text-xs text-slate-500">
-                      Aktiviert Personalisierungsoptionen auf der Produktseite.
-                    </span>
-                  </span>
-                </label>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600">
+                <span>Featured: {draft.featured ? "ja" : "nein"}</span>
+                <span>Sync: {draft.shopifySyncStatus ?? "offen"}</span>
+                {draft.shopifySyncError ? <span>Fehler: {draft.shopifySyncError}</span> : null}
+                {draft.shopifyLastSyncedAt ? <span>Letzter Sync: {formatDateTime(draft.shopifyLastSyncedAt)}</span> : null}
               </div>
             </SectionCard>
             <SectionCard
@@ -2286,62 +1999,54 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
             <SectionCard
               id="description"
               title="Beschreibung"
-              hint="Lange Beschreibung und seltener genutzte Content-Felder kompakt gruppiert."
+              hint="Textfelder ohne Zusatz-UI."
               icon={<SlidersHorizontal className="h-4 w-4 text-slate-400" />}
             >
-              <div className="grid gap-3">
+              <div className="grid gap-2">
                 <Field label="Lange Beschreibung">
                   <AutoResizeTextarea
                     value={draft.longDescription}
                     onChange={(event) => setField("longDescription", event.target.value)}
-                    minRows={6}
+                    minRows={5}
                     placeholder="Volle Produktbeschreibung"
                   />
                 </Field>
 
-                <details className="group rounded-xl border border-[rgba(148,163,184,0.18)] bg-white/65" open>
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3 text-sm font-semibold text-slate-900">
-                    Erweiterte Inhalte
-                    <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
-                  </summary>
-                  <div className="grid gap-3 border-t border-[rgba(148,163,184,0.14)] px-3.5 py-3">
-                    <Field label="Pflegehinweis">
-                      <AutoResizeTextarea
-                        value={draft.care}
-                        onChange={(event) => setField("care", event.target.value)}
-                        minRows={2}
-                        placeholder="Hinweise fuer Reinigung und Nutzung"
-                      />
-                    </Field>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <Field label="Pflegehinweis">
+                    <AutoResizeTextarea
+                      value={draft.care}
+                      onChange={(event) => setField("care", event.target.value)}
+                      minRows={3}
+                      placeholder="Hinweise fuer Reinigung und Nutzung"
+                    />
+                  </Field>
 
-                    <Field
-                      label="Benefits"
-                      hint="Eine Zeile pro Benefit. Wird als Liste gespeichert."
-                    >
-                      <AutoResizeTextarea
-                        value={benefitsText}
-                        onChange={(event) => setField("benefits", splitLines(event.target.value))}
-                        minRows={3}
-                        placeholder={"Benefit 1\nBenefit 2"}
-                      />
-                    </Field>
-                  </div>
-                </details>
+                  <Field label="Benefits" hint="Eine Zeile pro Benefit.">
+                    <AutoResizeTextarea
+                      value={benefitsText}
+                      onChange={(event) => setField("benefits", splitLines(event.target.value))}
+                      minRows={3}
+                      placeholder={"Benefit 1\nBenefit 2"}
+                    />
+                  </Field>
+                </div>
               </div>
             </SectionCard>
 
             <SectionCard
               id="variants"
               title="Varianten"
-              hint="Primarinfos bleiben sichtbar, Details oeffnen nur bei Bedarf."
+              hint="Zeilenansicht, Details nur aufgeklappt."
               icon={<Package2 className="h-4 w-4 text-slate-400" />}
               action={
                 <button
                   type="button"
                   onClick={addVariant}
-                  className="admin-action-secondary !px-3.5 !py-2.5 !text-sm"
+                  className="admin-action-secondary !px-2 !py-1 !text-xs"
                 >
-                  Variante hinzufuegen
+                  <Plus className="h-3.5 w-3.5" />
+                  Variante
                 </button>
               }
             >
@@ -2350,52 +2055,43 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                 items={[publicationItemsById["active-variant"], publicationItemsById.price]}
               />
               {draft.variants.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-rose-200 bg-rose-50/50 px-4 py-6 text-sm text-rose-700">
+                <div className="border border-dashed border-slate-300 px-2 py-2 text-sm text-slate-500">
                   Noch keine Varianten vorhanden.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="border border-slate-300">
                   {draft.variants.map((variant, index) => {
                     const isOpen = openVariantIds[variant.id] ?? false;
 
                     return (
-                      <article key={variant.id} className="admin-subpanel rounded-[1.25rem] p-3.5">
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <article key={variant.id} className="border-t border-slate-300 first:border-t-0">
+                        <div className="grid gap-2 px-2 py-2 lg:grid-cols-[minmax(0,1.3fr)_160px_120px_140px_auto] lg:items-center">
                           <button
                             type="button"
                             onClick={() => toggleVariantOpen(variant.id)}
-                            className="min-w-0 flex-1 text-left"
+                            className="flex min-w-0 items-center gap-1 text-left"
                             aria-expanded={isOpen}
                           >
-                            <div className="flex items-center gap-2">
-                              {isOpen ? (
-                                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                              )}
-                              <p className="truncate text-sm font-semibold text-slate-950">
-                                {variant.name || `Variante ${index + 1}`}
-                              </p>
-                              {draft.defaultVariantId === variant.id ? (
-                                <MetaPill tone="success">Default</MetaPill>
-                              ) : null}
-                              {variant.id === publicationVariant?.id ? (
-                                <MetaPill tone={getPublicationStatusTone(publicationItemsById.price.status)}>
-                                  Publikationsvariante
-                                </MetaPill>
-                              ) : null}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                              <span>SKU {variant.sku || "-"}</span>
-                              <span>&middot;</span>
-                              <span>{formatMoneyFromCents(variant.priceCents)}</span>
-                              <span>&middot;</span>
-                              <span>{getStockSummary(variant)}</span>
-                            </div>
+                            {isOpen ? (
+                              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                            )}
+                            <span className="truncate text-sm font-medium text-slate-950">
+                              {variant.name || `Variante ${index + 1}`}
+                            </span>
+                            {draft.defaultVariantId === variant.id ? <MetaPill tone="success">Default</MetaPill> : null}
+                            {variant.id === publicationVariant?.id ? (
+                              <MetaPill tone={getPublicationStatusTone(publicationItemsById.price.status)}>Active</MetaPill>
+                            ) : null}
                           </button>
 
-                          <div className="flex flex-wrap items-center gap-2">
-                            <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                          <div className="text-xs text-slate-600">SKU {variant.sku || "-"}</div>
+                          <div className="text-xs text-slate-600">{formatMoneyFromCents(variant.priceCents)}</div>
+                          <div className="text-xs text-slate-600">{getStockSummary(variant)}</div>
+
+                          <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+                            <label className="inline-flex items-center gap-1 border border-slate-300 px-2 py-1 text-[11px] text-slate-700">
                               <input
                                 type="radio"
                                 name="defaultVariant"
@@ -2404,14 +2100,7 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                               />
                               Standard
                             </label>
-                            <label
-                              className={clsx(
-                                "inline-flex items-center gap-2 rounded-full border bg-white px-3 py-2 text-xs font-semibold",
-                                variant.isActive
-                                  ? "border-emerald-200 text-emerald-700"
-                                  : "border-rose-200 text-rose-700"
-                              )}
-                            >
+                            <label className="inline-flex items-center gap-1 border border-slate-300 px-2 py-1 text-[11px] text-slate-700">
                               <input
                                 type="checkbox"
                                 checked={variant.isActive}
@@ -2424,19 +2113,20 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                               />
                               Aktiv
                             </label>
-                            <MetaPill tone={getStockTone(variant)}>{getStockSummary(variant)}</MetaPill>
                             <button
                               type="button"
                               onClick={() => removeVariant(variant.id)}
-                              className="admin-action-danger !px-3 !py-2 !text-sm"
+                              title="Variante loeschen"
+                              aria-label="Variante loeschen"
+                              className="admin-action-danger !px-2 !py-1"
                             >
-                              Entfernen
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </div>
 
                         {isOpen ? (
-                          <div className="mt-3 grid gap-3 border-t border-[rgba(148,163,184,0.14)] pt-3 md:grid-cols-2 xl:grid-cols-4">
+                          <div className="grid gap-2 border-t border-slate-300 px-2 py-2 md:grid-cols-2 xl:grid-cols-4">
                             <Field label="Name">
                               <CompactInput
                                 value={variant.name}
@@ -2596,7 +2286,7 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
             <SectionCard
               id="media"
               title="Medien und Bilder"
-              hint="Direkter Upload-Workflow mit Backend-Speicherung, Bildstatus und Shopify-Abgleich."
+              hint="Kleine Vorschau, direkte Aktionen."
               icon={<ImageIcon className="h-4 w-4 text-slate-400" />}
             >
               <PublicationSectionSummary
@@ -2617,61 +2307,57 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
             <SectionCard
               id="personalization"
               title="Personalisierungsoptionen"
-              hint="Optionen bleiben kompakt, Select-Werte oeffnen nur bei Bedarf."
+              hint="Kompakte Zeilen, Details bei Bedarf."
               icon={<SlidersHorizontal className="h-4 w-4 text-slate-400" />}
               action={
                 <button
                   type="button"
                   onClick={addOption}
-                  className="admin-action-secondary !px-3.5 !py-2.5 !text-sm"
+                  className="admin-action-secondary !px-2 !py-1 !text-xs"
                 >
-                  Option hinzufuegen
+                  <Plus className="h-3.5 w-3.5" />
+                  Option
                 </button>
               }
             >
               {draft.options.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[rgba(148,163,184,0.24)] bg-white/60 px-4 py-6 text-sm text-slate-500">
+                <div className="border border-dashed border-slate-300 px-2 py-2 text-sm text-slate-500">
                   Noch keine Personalisierungsoptionen vorhanden.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="border border-slate-300">
                   {draft.options.map((option, optionIndex) => {
                     const isOpen = openOptionIds[option.id] ?? false;
 
                     return (
-                      <article key={option.id} className="admin-subpanel rounded-[1.25rem] p-3.5">
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <article key={option.id} className="border-t border-slate-300 first:border-t-0">
+                        <div className="grid gap-2 px-2 py-2 lg:grid-cols-[minmax(0,1.3fr)_160px_120px_100px_auto] lg:items-center">
                           <button
                             type="button"
                             onClick={() => toggleOptionOpen(option.id)}
-                            className="min-w-0 flex-1 text-left"
+                            className="flex min-w-0 items-center gap-1 text-left"
                             aria-expanded={isOpen}
                           >
-                            <div className="flex items-center gap-2">
-                              {isOpen ? (
-                                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                              )}
-                              <p className="truncate text-sm font-semibold text-slate-950">
-                                {option.name || `Option ${optionIndex + 1}`}
-                              </p>
-                              <MetaPill tone={option.isActive ? "success" : "neutral"}>
-                                {option.isActive ? "Aktiv" : "Inaktiv"}
-                              </MetaPill>
-                              {option.isRequired ? <MetaPill tone="warning">Pflicht</MetaPill> : null}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                              <span>{option.code || "kein-code"}</span>
-                              <span>&middot;</span>
-                              <span>{option.type}</span>
-                              <span>&middot;</span>
-                              <span>{option.values.length} Werte</span>
-                            </div>
+                            {isOpen ? (
+                              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                            )}
+                            <span className="truncate text-sm font-medium text-slate-950">
+                              {option.name || `Option ${optionIndex + 1}`}
+                            </span>
+                            {option.isRequired ? <MetaPill tone="warning">Pflicht</MetaPill> : null}
+                            <MetaPill tone={option.isActive ? "success" : "neutral"}>
+                              {option.isActive ? "Aktiv" : "Inaktiv"}
+                            </MetaPill>
                           </button>
 
-                          <div className="flex flex-wrap items-center gap-2">
-                            <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                          <div className="truncate text-xs text-slate-600">{option.code || "kein-code"}</div>
+                          <div className="text-xs text-slate-600">{option.type}</div>
+                          <div className="text-xs text-slate-600">{option.values.length} Werte</div>
+
+                          <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+                            <label className="inline-flex items-center gap-1 border border-slate-300 px-2 py-1 text-[11px] text-slate-700">
                               <input
                                 type="checkbox"
                                 checked={option.isRequired}
@@ -2684,7 +2370,7 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                               />
                               Pflicht
                             </label>
-                            <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                            <label className="inline-flex items-center gap-1 border border-slate-300 px-2 py-1 text-[11px] text-slate-700">
                               <input
                                 type="checkbox"
                                 checked={option.isActive}
@@ -2700,16 +2386,18 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                             <button
                               type="button"
                               onClick={() => removeOption(option.id)}
-                              className="admin-action-danger !px-3 !py-2 !text-sm"
+                              title="Option loeschen"
+                              aria-label="Option loeschen"
+                              className="admin-action-danger !px-2 !py-1"
                             >
-                              Entfernen
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </div>
 
                         {isOpen ? (
-                          <div className="mt-3 space-y-3 border-t border-[rgba(148,163,184,0.14)] pt-3">
-                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                          <div className="space-y-2 border-t border-slate-300 px-2 py-2">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                               <Field label="Name">
                                 <CompactInput
                                   value={option.name}
@@ -2785,7 +2473,7 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                               </Field>
                             </div>
 
-                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                               <Field label="Placeholder">
                                 <CompactInput
                                   value={option.placeholder ?? ""}
@@ -2853,28 +2541,24 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                             </Field>
 
                             {option.type === "select" ? (
-                              <div className="rounded-xl border border-[rgba(148,163,184,0.18)] bg-white/65 px-3.5 py-3">
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                  <div>
-                                    <p className="text-sm font-semibold text-slate-950">Select-Werte</p>
-                                    <p className="mt-1 text-xs text-slate-500">
-                                      Kompakt pflegen und nur aktive Werte publizieren.
-                                    </p>
-                                  </div>
+                              <div className="border border-slate-300">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 px-2 py-1.5">
+                                  <p className="text-xs font-semibold text-slate-900">Select-Werte</p>
                                   <button
                                     type="button"
                                     onClick={() => addSelectValue(option.id)}
-                                    className="admin-action-secondary !px-3 !py-2 !text-sm"
+                                    className="admin-action-secondary !px-2 !py-1 !text-xs"
                                   >
-                                    Wert hinzufuegen
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Wert
                                   </button>
                                 </div>
 
-                                <div className="mt-3 space-y-2">
+                                <div>
                                   {option.values.map((value) => (
                                     <div
                                       key={value.id}
-                                      className="grid gap-2 rounded-xl border border-[rgba(148,163,184,0.16)] bg-white px-3 py-3 lg:grid-cols-[1fr_1fr_160px_auto_auto]"
+                                      className="grid gap-2 border-t border-slate-300 px-2 py-2 first:border-t-0 lg:grid-cols-[1fr_1fr_120px_auto_auto]"
                                     >
                                       <CompactInput
                                         value={value.label}
@@ -2906,7 +2590,7 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                                           }))
                                         }
                                       />
-                                      <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                                      <label className="inline-flex items-center gap-1 border border-slate-300 px-2 py-1 text-[11px] text-slate-700">
                                         <input
                                           type="checkbox"
                                           checked={value.isActive}
@@ -2922,9 +2606,11 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                                       <button
                                         type="button"
                                         onClick={() => removeSelectValue(option.id, value.id)}
-                                        className="admin-action-danger !px-3 !py-2 !text-sm"
+                                        title="Wert loeschen"
+                                        aria-label="Wert loeschen"
+                                        className="admin-action-danger !px-2 !py-1"
                                       >
-                                        Entfernen
+                                        <Trash2 className="h-3.5 w-3.5" />
                                       </button>
                                     </div>
                                   ))}
@@ -2939,63 +2625,6 @@ export function AdminProductEditor({ product, taxonomies }: AdminProductEditorPr
                 </div>
               )}
             </SectionCard>
-          </div>
-
-          <aside className="hidden xl:block">
-            <div className="sticky top-28 space-y-3">
-              <div className="admin-panel rounded-[1.5rem] p-4">
-                <p className="text-sm font-semibold text-slate-950">Workflow-Status</p>
-                <div className="mt-3 space-y-2 text-sm text-slate-600">
-                  <div className="flex items-start gap-2">
-                    {publicationChecklist.isReady ? (
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <TriangleAlert className="mt-0.5 h-4 w-4 text-amber-500" />
-                    )}
-                    <span>
-                      {publicationChecklist.isReady
-                        ? "Produkt ist aktuell bereit fuer active."
-                        : `${publicationChecklist.completedCount} von ${publicationChecklist.totalCount} Kernanforderungen sind erfuellt.`}
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    {hasUnsavedChanges ? (
-                      <TriangleAlert className="mt-0.5 h-4 w-4 text-amber-500" />
-                    ) : (
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
-                    )}
-                    <span>
-                      {hasUnsavedChanges
-                        ? "Es gibt ungespeicherte Aenderungen."
-                        : "Formular und gespeicherter Stand sind synchron."}
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Store className="mt-0.5 h-4 w-4 text-slate-400" />
-                    <span>
-                      {hasUnsavedChanges
-                        ? "Shopify-Sync speichert Aenderungen zuerst."
-                        : "Shopify-Sync arbeitet mit dem zuletzt gespeicherten Stand."}
-                    </span>
-                  </div>
-                  {!publicationChecklist.isReady ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
-                      Offen:{" "}
-                      {publicationChecklist.items
-                        .filter((item) => item.status !== "complete")
-                        .map((item) => item.label)
-                        .join(", ")}
-                      {publicationChecklist.extraIssues.length > 0
-                        ? ` | Weitere Checks: ${publicationChecklist.extraIssues.map((issue) => issue.message).join(" ")}`
-                        : ""}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <SidebarNav sections={sectionLinks} />
-            </div>
-          </aside>
         </div>
       </div>
     </section>

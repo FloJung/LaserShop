@@ -1,6 +1,7 @@
 import "server-only";
 
 import { FieldValue } from "firebase-admin/firestore";
+import { unstable_noStore as noStore } from "next/cache";
 import { getAdminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
 import { collections as staticCollections, glassTypes as staticGlassTypes, occasions as staticOccasions, products as staticProducts, shopCategories as staticShopCategories } from "@/lib/data/products";
 import type { DesignerCollection, ShopCategory, TaxonomyOption } from "@/lib/types";
@@ -255,6 +256,8 @@ export async function ensureProductTaxonomiesSeeded() {
 }
 
 export async function getProductTaxonomyCatalog(): Promise<ProductTaxonomyCatalog> {
+  noStore();
+
   if (!isFirebaseAdminConfigured()) {
     return buildStaticCatalog();
   }
@@ -691,6 +694,8 @@ function getFirstCollectionImage(slug: string) {
 }
 
 export async function getStorefrontCollections(): Promise<DesignerCollection[]> {
+  noStore();
+
   if (!isFirebaseAdminConfigured()) {
     return staticCollections;
   }
@@ -726,6 +731,8 @@ export async function getStorefrontCollections(): Promise<DesignerCollection[]> 
 }
 
 export async function getStorefrontShopCategories(): Promise<ShopCategory[]> {
+  noStore();
+
   if (!isFirebaseAdminConfigured()) {
     return staticShopCategories;
   }
@@ -739,14 +746,43 @@ export async function getStorefrontShopCategories(): Promise<ShopCategory[]> {
   }));
 }
 
+export async function getStorefrontCategories(): Promise<TaxonomyOption[]> {
+  noStore();
+
+  if (!isFirebaseAdminConfigured()) {
+    return Array.from(new Set(staticProducts.map((product) => product.category).filter(Boolean)))
+      .map((name) => String(name).trim())
+      .filter(Boolean)
+      .map((name) => ({
+        slug: slugifyTaxonomyValue(name),
+        name
+      }));
+  }
+
+  const catalog = await getProductTaxonomyCatalog();
+  return catalog.category.map((entry) => ({
+    id: entry.id,
+    slug: entry.slug,
+    name: entry.name,
+    description: entry.description
+  }));
+}
+
 export async function getStorefrontFilterOptions(): Promise<{
+  categories: TaxonomyOption[];
   collections: DesignerCollection[];
   glassTypes: TaxonomyOption[];
   occasions: TaxonomyOption[];
   shopCategories: ShopCategory[];
 }> {
+  noStore();
+
   if (!isFirebaseAdminConfigured()) {
     return {
+      categories: Array.from(new Set(staticProducts.map((product) => product.category).filter(Boolean)))
+        .map((name) => String(name).trim())
+        .filter(Boolean)
+        .map((name) => ({ slug: slugifyTaxonomyValue(name), name })),
       collections: staticCollections,
       glassTypes: staticGlassTypes.map((name) => ({ slug: slugifyTaxonomyValue(name), name })),
       occasions: staticOccasions.map((name) => ({ slug: slugifyTaxonomyValue(name), name })),
@@ -754,13 +790,15 @@ export async function getStorefrontFilterOptions(): Promise<{
     };
   }
 
-  const [catalog, collections, shopCategories] = await Promise.all([
+  const [catalog, categories, collections, shopCategories] = await Promise.all([
     getProductTaxonomyCatalog(),
+    getStorefrontCategories(),
     getStorefrontCollections(),
     getStorefrontShopCategories()
   ]);
 
   return {
+    categories,
     collections,
     glassTypes: catalog.glassType.map((entry) => ({
       id: entry.id,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getTaxonomyRevalidationPaths, revalidateShopCatalog } from "@/lib/server/catalog-revalidation";
 import { getCurrentSession } from "@/lib/server/admin-session";
 import {
   createProductTaxonomyValue,
@@ -48,6 +49,14 @@ export async function POST(request: Request) {
     const taxonomy = await createProductTaxonomyValue(kind, {
       name,
       description
+    });
+
+    revalidateShopCatalog({
+      extraPaths: getTaxonomyRevalidationPaths({
+        kind,
+        nextSlug: taxonomy.slug,
+        nextName: taxonomy.name
+      })
     });
 
     return NextResponse.json({

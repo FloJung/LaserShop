@@ -2,7 +2,7 @@ import type { CoasterDesignDocument } from "@/lib/design-tool";
 import { products } from "@/lib/data/products";
 import type { Product } from "@/lib/types";
 import type {
-  CartConfigurationInput,
+  CartItemPersonalization,
   CheckoutCustomerInput,
   CheckoutValidationRequest,
   CustomerAddress
@@ -30,9 +30,61 @@ export type CartItem = {
   image: string;
   previewImage?: string;
   subtitle?: string;
-  configurations?: CartConfigurationInput[];
+  configurations?: CartItemPersonalization[];
   designJson?: CoasterDesignDocument;
 };
+
+function createCartItemId(prefix: string) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeCartConfigurations(configurations?: CartItemPersonalization[]) {
+  if (!configurations || configurations.length === 0) {
+    return undefined;
+  }
+
+  return [...configurations]
+    .map((configuration) => ({
+      ...configuration,
+      optionId: configuration.optionId.trim()
+    }))
+    .filter((configuration) => configuration.optionId.length > 0);
+}
+
+function serializeConfigurationValue(value: CartItemPersonalization["value"]) {
+  if (typeof value === "string" || typeof value === "boolean") {
+    return value;
+  }
+
+  return {
+    uploadId: value.uploadId,
+    originalFilename: value.originalFilename ?? ""
+  };
+}
+
+export function getCartItemMergeKey(
+  item: Pick<CartItem, "lineType" | "productId" | "variantId" | "configurations" | "designJson">
+) {
+  return JSON.stringify({
+    lineType: item.lineType,
+    productId: item.productId,
+    variantId: item.variantId,
+    configurations: (item.configurations ?? []).map((configuration) => ({
+      optionId: configuration.optionId,
+      value: serializeConfigurationValue(configuration.value)
+    })),
+    customDesign: item.designJson
+      ? {
+          productId: item.designJson.productId,
+          updatedAt: item.designJson.updatedAt
+        }
+      : undefined
+  });
+}
 
 function summarizeDesignDocument(design: CoasterDesignDocument) {
   return {
@@ -79,7 +131,8 @@ export function sanitizeCartItem(item: CartItem): CartItem {
   return {
     ...item,
     variantId: item.variantId || `${item.productId}-default`,
-    image: getSafeCartItemImage(item)
+    image: getSafeCartItemImage(item),
+    configurations: normalizeCartConfigurations(item.configurations)
   };
 }
 
@@ -87,9 +140,16 @@ export function sanitizeCartItems(items: CartItem[]): CartItem[] {
   return items.map(sanitizeCartItem);
 }
 
-export function createCartItemFromProduct(product: Product): CartItem {
+export function attachPersonalizationToCartItem(item: CartItem, configurations?: CartItemPersonalization[]) {
   return sanitizeCartItem({
-    id: `product-${product.id}`,
+    ...item,
+    configurations: normalizeCartConfigurations(configurations)
+  });
+}
+
+export function createCartItemFromProduct(product: Product, configurations?: CartItemPersonalization[]): CartItem {
+  return sanitizeCartItem({
+    id: createCartItemId(`product-${product.id}`),
     lineType: "product",
     productId: product.id,
     variantId: product.defaultVariantId ?? `${product.id}-default`,
@@ -97,6 +157,7 @@ export function createCartItemFromProduct(product: Product): CartItem {
     price: product.price,
     quantity: 1,
     image: product.image,
+    configurations: normalizeCartConfigurations(configurations),
     subtitle: `${product.collection} · ${product.glassType}`
   });
 }
@@ -128,7 +189,10 @@ export function buildCheckoutRequest(input: {
       productId: item.productId,
       variantId: item.variantId,
       quantity: item.quantity,
-      configurations: item.configurations,
+      configurations: item.configurations?.map(({ optionId, value }) => ({
+        optionId,
+        value
+      })),
       designPreviewUrl: getCheckoutPreviewUrl(item.previewImage),
       customData: item.designJson ? summarizeDesignDocument(item.designJson) : undefined
     }))

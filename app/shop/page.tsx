@@ -17,6 +17,8 @@ export default async function ShopPage({
 }) {
   const params = await searchParams;
   const filters = {
+    category: readParam(params.category),
+    shopCategory: readParam(params.shopCategory),
     search: readParam(params.search),
     glassType: readParam(params.glassType),
     collection: readParam(params.collection),
@@ -35,10 +37,14 @@ export default async function ShopPage({
         />
 
         <FilterBar
+          category={filters.category}
+          shopCategory={filters.shopCategory}
           search={filters.search}
           glassType={filters.glassType}
           collection={filters.collection}
           occasion={filters.occasion}
+          categories={filterOptions.categories}
+          shopCategories={filterOptions.shopCategories}
           collections={filterOptions.collections}
           glassTypes={filterOptions.glassTypes}
           occasions={filterOptions.occasions}

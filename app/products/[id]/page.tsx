@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { ShieldCheck, Truck, Sparkles, HeartHandshake } from "lucide-react";
-import { AddToCartButton } from "@/components/add-to-cart-button";
-import { BuyNowButton } from "@/components/buy-now-button";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
+import { ProductPurchasePanel } from "@/components/product-purchase-panel";
 import { Rating } from "@/components/rating";
 import { SectionHeading } from "@/components/section-heading";
 import { formatPrice } from "@/lib/money";
@@ -53,6 +52,8 @@ export default async function ProductPage({
 
             <p className="text-[var(--text-soft)]">{product.description}</p>
 
+            <ProductPurchasePanel product={product} options={product.options} />
+
             <div className="rounded-2xl bg-[var(--muted-surface)] p-4 text-sm text-[var(--text-soft)]">
               <p className="font-semibold text-[var(--text)]">Pflegehinweise</p>
               <p className="mt-1">{product.care}</p>
@@ -66,13 +67,6 @@ export default async function ProductPage({
                 ))}
               </ul>
             </div>
-
-            <AddToCartButton product={product} className="w-full rounded-2xl" />
-            <BuyNowButton
-              productId={product.id}
-              variantId={product.defaultVariantId ?? `${product.id}-default`}
-              className="w-full rounded-2xl"
-            />
 
             <div className="grid grid-cols-2 gap-2">
               {trustItems.map((item) => {

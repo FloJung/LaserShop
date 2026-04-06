@@ -6,12 +6,14 @@ import {
   calculateCartCount,
   calculateCartSubtotal,
   createCartItemFromProduct,
+  getCartItemMergeKey,
   sanitizeCartItem,
   sanitizeCartItems
 } from "@/lib/cart";
 import type { CartItem } from "@/lib/cart";
 import type { CoasterDesignDocument } from "@/lib/design-tool";
 import type { Product } from "@/lib/types";
+import type { CartItemPersonalization } from "@/shared/catalog";
 
 const CART_STORAGE_KEY = "laser-shop-cart";
 
@@ -19,7 +21,7 @@ type CartContextValue = {
   items: CartItem[];
   count: number;
   subtotal: number;
-  addProduct: (product: Product) => void;
+  addProduct: (product: Product, configurations?: CartItemPersonalization[]) => void;
   addCustomDesign: (payload: { designJson: CoasterDesignDocument; previewImage: string }) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
@@ -63,16 +65,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       items,
       count: calculateCartCount(items),
       subtotal: calculateCartSubtotal(items),
-      addProduct: (product) => {
+      addProduct: (product, configurations) => {
         setItems((current) => {
-          const existing = current.find((item) => item.lineType === "product" && item.productId === product.id);
+          const nextItem = createCartItemFromProduct(product, configurations);
+          const nextMergeKey = getCartItemMergeKey(nextItem);
+          const existing = current.find((item) => item.lineType === "product" && getCartItemMergeKey(item) === nextMergeKey);
           if (existing) {
             return current.map((item) =>
               item.id === existing.id ? sanitizeCartItem({ ...item, quantity: item.quantity + 1 }) : sanitizeCartItem(item)
             );
           }
 
-          return [...current, createCartItemFromProduct(product)];
+          return [...current, nextItem];
         });
       },
       addCustomDesign: ({ designJson, previewImage }) => {

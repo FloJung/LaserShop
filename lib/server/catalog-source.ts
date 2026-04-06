@@ -15,6 +15,7 @@ import {
   productOptionValueDocumentSchema,
   productVariantDocumentSchema
 } from "@/shared/catalog";
+import type { StorefrontOption } from "@/shared/catalog";
 
 type StorefrontVariant = {
   id: string;
@@ -31,28 +32,6 @@ type StorefrontImage = {
   altText: string;
   sortOrder: number;
   isPrimary: boolean;
-};
-
-export type StorefrontOptionValue = {
-  id: string;
-  label: string;
-  value: string;
-  sortOrder: number;
-  priceModifierCents: number;
-};
-
-export type StorefrontOption = {
-  id: string;
-  name: string;
-  code: string;
-  type: "text" | "textarea" | "select" | "checkbox" | "file";
-  isRequired: boolean;
-  helpText?: string;
-  maxLength?: number;
-  priceModifierCents: number;
-  pricingMode: "none" | "fixed" | "per_character";
-  sortOrder: number;
-  values: StorefrontOptionValue[];
 };
 
 export type StorefrontProductDetail = Product & {
@@ -129,6 +108,8 @@ function buildStorefrontProduct(input: {
     gallery: input.images
       .sort((left, right) => left.sortOrder - right.sortOrder)
       .map((image) => image.url),
+    category: input.productDoc.category,
+    categoryId: input.productDoc.categoryId,
     glassType: input.productDoc.glassType as Product["glassType"],
     shopCategory: input.productDoc.shopCategory as Product["shopCategory"],
     collection: input.productDoc.collection,
@@ -203,8 +184,12 @@ async function readOptions(productId: string) {
   const snapshot = await getAdminDb().collection("products").doc(productId).collection("options").get();
 
   return Promise.all(
-    snapshot.docs.map(async (doc) => {
+    snapshot.docs.map(async (doc): Promise<StorefrontOption | null> => {
       const option = productOptionDocumentSchema.parse(doc.data());
+      if (!option.isActive) {
+        return null;
+      }
+
       const valueSnapshot = await doc.ref.collection("values").get();
       const values = valueSnapshot.docs
         .map((valueDoc) => ({
@@ -221,21 +206,30 @@ async function readOptions(productId: string) {
           priceModifierCents: entry.data.priceModifierCents ?? 0
         }));
 
-      return {
+      const mappedOption: StorefrontOption = {
         id: doc.id,
         name: option.name,
         code: option.code,
         type: option.type,
         isRequired: option.isRequired,
         helpText: option.helpText,
+        placeholder: option.placeholder,
         maxLength: option.maxLength,
         priceModifierCents: option.priceModifierCents ?? 0,
         pricingMode: option.pricingMode,
         sortOrder: option.sortOrder,
+        acceptedMimeTypes: option.acceptedMimeTypes,
         values
-      } satisfies StorefrontOption;
+      };
+
+      return mappedOption;
     })
-  ).then((options) => options.filter((option) => valuesOrNoValuesAllowed(option)).sort((left, right) => left.sortOrder - right.sortOrder));
+  ).then((options) =>
+    options
+      .filter((option): option is StorefrontOption => option !== null)
+      .filter((option) => valuesOrNoValuesAllowed(option))
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+  );
 }
 
 function valuesOrNoValuesAllowed(option: StorefrontOption) {

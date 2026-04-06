@@ -62,6 +62,16 @@ export function CartPage() {
                     <div>
                       <p className="text-xl font-semibold">{item.name}</p>
                       {item.subtitle ? <p className="mt-1 text-sm text-[var(--text-soft)]">{item.subtitle}</p> : null}
+                      {item.configurations && item.configurations.length > 0 ? (
+                        <div className="mt-3 space-y-1 text-sm text-[var(--text-soft)]">
+                          {item.configurations.map((configuration) => (
+                            <p key={`${item.id}-${configuration.optionId}`}>
+                              <span className="font-medium text-[var(--text)]">{configuration.optionName}:</span>{" "}
+                              {configuration.renderedValue}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
                       {item.lineType === "custom-design" ? (
                         <p className="mt-2 text-sm font-medium text-[var(--brand)]">
                           Custom-Design mit gespeicherter JSON- und PNG-Vorschau

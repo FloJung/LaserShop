@@ -27,6 +27,8 @@ export default async function CollectionPage({
   }
 
   const filters = {
+    category: readParam(query.category),
+    shopCategory: readParam(query.shopCategory),
     search: readParam(query.search),
     glassType: readParam(query.glassType),
     occasion: readParam(query.occasion)
@@ -59,9 +61,13 @@ export default async function CollectionPage({
         <div className="shell">
           <SectionHeading title="Alle Designs dieser Kollektion" />
           <FilterBar
+            category={filters.category}
+            shopCategory={filters.shopCategory}
             search={filters.search}
             glassType={filters.glassType}
             occasion={filters.occasion}
+            categories={filterOptions.categories}
+            shopCategories={filterOptions.shopCategories}
             collections={filterOptions.collections}
             glassTypes={filterOptions.glassTypes}
             occasions={filterOptions.occasions}

@@ -71,7 +71,7 @@ type AdminProductImageManagerProps = {
 };
 
 const compactInputClassName =
-  "admin-field !min-h-[2.75rem] !rounded-xl !px-3 !py-2.5 !text-sm !shadow-none";
+  "admin-field !min-h-[2rem] !rounded-none !px-2 !py-1.5 !text-sm !shadow-none";
 
 function createLocalId(prefix: string) {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -186,9 +186,9 @@ function ProductImageCard({
   }
 
   return (
-    <article className="admin-subpanel rounded-[1.25rem] p-3.5">
-      <div className="flex gap-3">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <article className="admin-subpanel border-t border-slate-300 p-2 first:border-t-0">
+      <div className="flex gap-2">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden border border-slate-300 bg-white">
           {image.publicUrl || image.url ? (
             <img
               src={image.publicUrl ?? image.url}
@@ -196,39 +196,39 @@ function ProductImageCard({
               className="h-full w-full object-cover"
             />
           ) : (
-            <ImageIcon className="h-5 w-5 text-slate-400" />
+            <ImageIcon className="h-4 w-4 text-slate-400" />
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-semibold text-slate-950">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="truncate text-sm font-medium text-slate-950">
               {image.originalFilename || `Bild ${index + 1}`}
             </p>
             {image.isPrimary ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                <Star className="h-3.5 w-3.5" />
+              <span className="inline-flex items-center gap-1 border border-emerald-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                <Star className="h-3 w-3" />
                 Primary
               </span>
             ) : null}
             <span
               className={clsx(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
+                "inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
                 getSyncTone(image.syncStatus)
               )}
             >
               {image.syncStatus === "synced" ? (
-                <CheckCircle2 className="h-3.5 w-3.5" />
+                <CheckCircle2 className="h-3 w-3" />
               ) : image.syncStatus === "error" ? (
-                <AlertCircle className="h-3.5 w-3.5" />
+                <AlertCircle className="h-3 w-3" />
               ) : (
-                <LoaderCircle className="h-3.5 w-3.5" />
+                <LoaderCircle className="h-3 w-3" />
               )}
               {getSyncLabel(image.syncStatus)}
             </span>
           </div>
 
-          <div className="mt-2 grid gap-1 text-xs text-slate-500">
+          <div className="mt-1 grid gap-0.5 text-[11px] text-slate-500">
             <p className="truncate">Pfad: {image.storagePath || image.publicUrl || image.url || "-"}</p>
             <p>
               Datei: {image.mimeType || "-"} · {formatBytes(image.fileSize)}
@@ -242,9 +242,9 @@ function ProductImageCard({
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 border-t border-[rgba(148,163,184,0.14)] pt-3">
-        <label className="grid gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Alt-Text</span>
+      <div className="mt-2 grid gap-2 border-t border-slate-300 pt-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <label className="grid gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Alt-Text</span>
           <div className="relative">
             <input
               value={altText}
@@ -254,25 +254,26 @@ function ProductImageCard({
                 void commitAltText();
               }}
               onKeyDown={handleAltKeyDown}
-              className={clsx(compactInputClassName, isSavingAlt && "pr-10")}
+              className={clsx(compactInputClassName, isSavingAlt && "pr-8")}
             />
             {isSavingAlt ? (
-              <LoaderCircle className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />
+              <LoaderCircle className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-slate-400" />
             ) : null}
           </div>
         </label>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1 lg:justify-end">
           <button
             type="button"
             disabled={disabled || index === 0}
             onClick={() => {
               void onMove(image.id, -1);
             }}
-            className="admin-action-secondary !px-3 !py-2 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="admin-action-secondary !px-2 !py-1 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Nach oben"
+            aria-label="Nach oben"
           >
-            <ArrowUp className="h-4 w-4" />
-            Hoch
+            <ArrowUp className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -280,10 +281,11 @@ function ProductImageCard({
             onClick={() => {
               void onMove(image.id, 1);
             }}
-            className="admin-action-secondary !px-3 !py-2 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="admin-action-secondary !px-2 !py-1 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Nach unten"
+            aria-label="Nach unten"
           >
-            <ArrowDown className="h-4 w-4" />
-            Runter
+            <ArrowDown className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -291,10 +293,11 @@ function ProductImageCard({
             onClick={() => {
               void onSetPrimary(image.id);
             }}
-            className="admin-action-secondary !px-3 !py-2 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="admin-action-secondary !px-2 !py-1 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Als Primary setzen"
+            aria-label="Als Primary setzen"
           >
-            <Star className="h-4 w-4" />
-            Als Primary
+            <Star className="h-3.5 w-3.5" />
           </button>
           {image.syncStatus === "error" ? (
             <button
@@ -303,10 +306,11 @@ function ProductImageCard({
               onClick={() => {
                 void onRetrySync();
               }}
-              className="admin-action-secondary !px-3 !py-2 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="admin-action-secondary !px-2 !py-1 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Sync erneut"
+              aria-label="Sync erneut"
             >
-              <RefreshCcw className={clsx("h-4 w-4", isSyncing && "animate-spin")} />
-              Sync erneut
+              <RefreshCcw className={clsx("h-3.5 w-3.5", isSyncing && "animate-spin")} />
             </button>
           ) : null}
           <button
@@ -315,10 +319,11 @@ function ProductImageCard({
             onClick={() => {
               void onDelete(image.id);
             }}
-            className="admin-action-danger !px-3 !py-2 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="admin-action-danger !px-2 !py-1 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Bild loeschen"
+            aria-label="Bild loeschen"
           >
-            <Trash2 className="h-4 w-4" />
-            Loeschen
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -602,7 +607,7 @@ export function AdminProductImageManager({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div
         role="button"
         tabIndex={totalBusy ? -1 : 0}
@@ -631,10 +636,8 @@ export function AdminProductImageManager({
         }}
         onDrop={handleDrop}
         className={clsx(
-          "rounded-[1.25rem] border border-dashed px-4 py-4 transition",
-          isDragging
-            ? "border-emerald-300 bg-emerald-50/70"
-            : "border-[rgba(148,163,184,0.28)] bg-white/65 hover:border-slate-300 hover:bg-white/80",
+          "border border-dashed border-slate-300 px-2 py-2",
+          isDragging ? "bg-slate-100" : "bg-white",
           totalBusy && "cursor-not-allowed opacity-75",
           !totalBusy && "cursor-pointer"
         )}
@@ -649,36 +652,35 @@ export function AdminProductImageManager({
           disabled={totalBusy}
         />
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-2">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-slate-300 bg-white text-slate-500">
               {isUploading ? (
-                <LoaderCircle className="h-5 w-5 animate-spin" />
+                <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
-                <UploadCloud className="h-5 w-5" />
+                <UploadCloud className="h-4 w-4" />
               )}
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-950">Bild hochladen</p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="text-sm font-medium text-slate-950">Bild hochladen</p>
+              <p className="text-xs text-slate-500">
                 Drag & Drop oder Dateiauswahl. JPG, PNG und WEBP bis{" "}
                 {Math.round(MAX_PRODUCT_IMAGE_UPLOAD_BYTES / (1024 * 1024))} MB.
               </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Primary, Alt-Text, Reihenfolge und Shopify-Sync fuer {productTitle || "dieses Produkt"} werden direkt
-                hier verwaltet.
+              <p className="text-[11px] text-slate-500">
+                {productTitle || "Produkt"}: Upload, Primary, Alt-Text, Reihenfolge, Sync.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="inline-flex items-center gap-1 border border-slate-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600">
               {images.length} Bilder
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+            <span className="inline-flex items-center gap-1 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
               {pendingSyncCount} pending
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-rose-700">
+            <span className="inline-flex items-center gap-1 border border-rose-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-700">
               {failedSyncCount} Fehler
             </span>
             <button
@@ -688,10 +690,10 @@ export function AdminProductImageManager({
                 event.stopPropagation();
                 fileInputRef.current?.click();
               }}
-              className="admin-action-secondary !px-3.5 !py-2.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="admin-action-secondary !px-2 !py-1 !text-xs disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <UploadCloud className="h-4 w-4" />
-              Bild hochladen
+              <UploadCloud className="h-3.5 w-3.5" />
+              Upload
             </button>
           </div>
         </div>
@@ -701,68 +703,66 @@ export function AdminProductImageManager({
       {successMessage ? <p className="admin-alert admin-alert-success">{successMessage}</p> : null}
 
       {uploadQueue.length > 0 ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="border border-slate-300">
           {uploadQueue.map((entry) => (
-            <article key={entry.id} className="admin-subpanel rounded-[1.25rem] p-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <article key={entry.id} className="grid gap-2 border-t border-slate-300 px-2 py-2 first:border-t-0 md:grid-cols-[56px_minmax(0,1fr)_auto] md:items-start">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden border border-slate-300 bg-white">
                   <img src={entry.previewUrl} alt={entry.fileName} className="h-full w-full object-cover" />
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-950">{entry.fileName}</p>
-                      <p className="mt-1 text-xs text-slate-500">{formatBytes(entry.file.size)}</p>
-                    </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-950">{entry.fileName}</p>
+                <p className="text-[11px] text-slate-500">{formatBytes(entry.file.size)}</p>
+
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  <span
+                    className={clsx(
+                      "inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
+                      entry.status === "success" && "border-emerald-300 bg-emerald-50 text-emerald-700",
+                      entry.status === "error" && "border-rose-300 bg-rose-50 text-rose-700",
+                      (entry.status === "queued" || entry.status === "uploading") &&
+                        "border-amber-300 bg-amber-50 text-amber-700"
+                    )}
+                  >
+                    {entry.status === "uploading" ? (
+                      <LoaderCircle className="h-3 w-3 animate-spin" />
+                    ) : entry.status === "success" ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : entry.status === "error" ? (
+                      <AlertCircle className="h-3 w-3" />
+                    ) : (
+                      <UploadCloud className="h-3 w-3" />
+                    )}
+                    {entry.status}
+                  </span>
+                  {entry.status === "error" ? (
                     <button
                       type="button"
-                      onClick={() => removeQueueItem(entry.id)}
-                      className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                      aria-label="Upload-Eintrag entfernen"
+                      disabled={isUploading || isBusy}
+                      onClick={() => {
+                        void handleRetryUpload(entry);
+                      }}
+                      className="admin-action-secondary !px-2 !py-1 !text-xs disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <XCircle className="h-4 w-4" />
+                      <RefreshCcw className="h-3.5 w-3.5" />
+                      Retry
                     </button>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span
-                      className={clsx(
-                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
-                        entry.status === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
-                        entry.status === "error" && "border-rose-200 bg-rose-50 text-rose-700",
-                        (entry.status === "queued" || entry.status === "uploading") &&
-                          "border-amber-200 bg-amber-50 text-amber-700"
-                      )}
-                    >
-                      {entry.status === "uploading" ? (
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                      ) : entry.status === "success" ? (
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      ) : entry.status === "error" ? (
-                        <AlertCircle className="h-3.5 w-3.5" />
-                      ) : (
-                        <UploadCloud className="h-3.5 w-3.5" />
-                      )}
-                      {entry.status}
-                    </span>
-                    {entry.status === "error" ? (
-                      <button
-                        type="button"
-                        disabled={isUploading || isBusy}
-                        onClick={() => {
-                          void handleRetryUpload(entry);
-                        }}
-                        className="admin-action-secondary !px-3 !py-2 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <RefreshCcw className="h-4 w-4" />
-                        Retry
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {entry.error ? <p className="mt-2 text-xs text-rose-700">{entry.error}</p> : null}
+                  ) : null}
                 </div>
+
+                {entry.error ? <p className="mt-1 text-[11px] text-rose-700">{entry.error}</p> : null}
+              </div>
+
+              <div className="flex justify-start md:justify-end">
+                <button
+                  type="button"
+                  onClick={() => removeQueueItem(entry.id)}
+                  className="admin-action-secondary !px-2 !py-1"
+                  aria-label="Upload-Eintrag entfernen"
+                  title="Upload-Eintrag entfernen"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
               </div>
             </article>
           ))}
@@ -770,11 +770,11 @@ export function AdminProductImageManager({
       ) : null}
 
       {images.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[rgba(148,163,184,0.24)] bg-white/60 px-4 py-8 text-sm text-slate-500">
+        <div className="border border-dashed border-slate-300 px-2 py-3 text-sm text-slate-500">
           Noch keine Bilder vorhanden. Lade das erste Produktbild direkt hier hoch.
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="border border-slate-300">
           {images
             .slice()
             .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -796,9 +796,8 @@ export function AdminProductImageManager({
         </div>
       )}
 
-      <p className="text-xs text-slate-500">
-        Shopify-Bildsync verwendet die gespeicherten Backend-Bilder und vermeidet doppelte Eintraege ueber die lokale
-        Bildreferenz.
+      <p className="text-[11px] text-slate-500">
+        Shopify-Sync nutzt die gespeicherten Backend-Bilder.
       </p>
     </div>
   );
