@@ -2,6 +2,7 @@ import "server-only";
 
 import { getAdminDb } from "@/lib/firebase/admin";
 import { normalizeLegacyProductImage } from "@/lib/server/product-image-normalization";
+import { getProductTaxonomyCatalog, resolveProductTaxonomyFields } from "@/lib/server/product-taxonomies";
 import {
   productDocumentSchema,
   productOptionDocumentSchema,
@@ -141,15 +142,18 @@ async function readOptions(productId: string) {
 
 export async function getAdminProductSummaries(limit = 100): Promise<AdminProductSummary[]> {
   const snapshot = await getAdminDb().collection("products").orderBy("updatedAt", "desc").limit(limit).get();
+  const taxonomyCatalog = await getProductTaxonomyCatalog();
 
   const summaries = await Promise.all(
     snapshot.docs.map(async (doc) => {
       const product = productDocumentSchema.parse(doc.data());
+      const taxonomyFields = await resolveProductTaxonomyFields(product, taxonomyCatalog);
       const variantsSnapshot = await doc.ref.collection("variants").count().get();
 
       return toAdminProductSummary({
         id: doc.id,
         ...product,
+        ...taxonomyFields,
         variantCount: variantsSnapshot.data().count
       });
     })
@@ -165,6 +169,7 @@ export async function getAdminEditableProduct(productId: string): Promise<AdminE
   }
 
   const product = productDocumentSchema.parse(doc.data());
+  const taxonomyFields = await resolveProductTaxonomyFields(product);
   const [variants, images, options] = await Promise.all([
     readVariants(productId),
     readImages(productId),
@@ -174,6 +179,7 @@ export async function getAdminEditableProduct(productId: string): Promise<AdminE
   return {
     id: doc.id,
     ...product,
+    ...taxonomyFields,
     variants,
     images,
     options

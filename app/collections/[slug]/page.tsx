@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import { FilterBar } from "@/components/filter-bar";
 import { ProductCard } from "@/components/product-card";
 import { SectionHeading } from "@/components/section-heading";
-import { collections, glassTypes, occasions } from "@/lib/data/products";
-import { filterProducts } from "@/lib/shop";
+import { filterProducts, getCollection, getFilterOptions } from "@/lib/shop";
 
-export function generateStaticParams() {
-  return collections.map((collection) => ({ slug: collection.slug }));
+export async function generateStaticParams() {
+  const filterOptions = await getFilterOptions();
+  return filterOptions.collections.map((collection) => ({ slug: collection.slug }));
 }
 
 export default async function CollectionPage({
@@ -16,11 +16,11 @@ export default async function CollectionPage({
 }: {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+  }) {
   const readParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
   const { slug } = await params;
   const query = await searchParams;
-  const collection = collections.find((item) => item.slug === slug);
+  const [collection, filterOptions] = await Promise.all([getCollection(slug), getFilterOptions()]);
 
   if (!collection) {
     notFound();
@@ -62,9 +62,9 @@ export default async function CollectionPage({
             search={filters.search}
             glassType={filters.glassType}
             occasion={filters.occasion}
-            collections={collections}
-            glassTypes={glassTypes}
-            occasions={occasions}
+            collections={filterOptions.collections}
+            glassTypes={filterOptions.glassTypes}
+            occasions={filterOptions.occasions}
             showCollection={false}
             resetHref={`/collections/${collection.slug}`}
           />

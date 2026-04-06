@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { collections, shopCategories } from "@/lib/data/products";
+import type { DesignerCollection, ShopCategory } from "@/lib/types";
 
 const serviceLinks: ReadonlyArray<{ label: string; href?: string }> = [
   { label: "Versand & Retoure" },
@@ -9,7 +9,13 @@ const serviceLinks: ReadonlyArray<{ label: string; href?: string }> = [
   { label: "AGB", href: "/agb" }
 ];
 
-export function Footer() {
+export function Footer({
+  collections,
+  shopCategories
+}: {
+  collections: DesignerCollection[];
+  shopCategories: ShopCategory[];
+}) {
   return (
     <footer className="mt-10 border-t border-[var(--line)] bg-white">
       <div className="shell grid gap-8 py-12 md:grid-cols-4">

@@ -4,6 +4,7 @@ export const PRODUCT_OPTION_TYPES = ["text", "textarea", "select", "checkbox", "
 export const OPTION_PRICING_MODES = ["none", "fixed", "per_character"] as const;
 export const PRODUCT_IMAGE_SYNC_STATUSES = ["pending", "synced", "error"] as const;
 export const PRODUCT_SHOPIFY_SYNC_STATUSES = ["pending", "synced", "error"] as const;
+export const PRODUCT_TAXONOMY_KINDS = ["category", "shopCategory", "glassType", "occasion", "collection", "designer"] as const;
 export const PAYMENT_STATUSES = ["pending", "authorized", "paid", "partially_refunded", "refunded", "failed"] as const;
 export const ORDER_STATUSES = ["draft", "placed", "confirmed", "in_progress", "fulfilled", "completed", "cancelled"] as const;
 export const PRODUCTION_STATUSES = ["queued", "proof_needed", "approved", "engraving", "finishing", "ready", "shipped", "cancelled"] as const;

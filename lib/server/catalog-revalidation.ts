@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import type { ProductTaxonomyKind } from "@/shared/catalog";
 
 type CatalogPathInput = {
   id: string;
@@ -14,15 +15,16 @@ function collectCatalogPaths(product: CatalogPathInput) {
     "/",
     "/shop",
     `/products/${product.id}`,
-    `/category/${encodeURIComponent(product.glassType)}`,
-    `/category/${encodeURIComponent(product.shopCategory)}`,
-    `/collections/${encodeURIComponent(product.collectionSlug)}`
+    ...(product.glassType ? [`/category/${encodeURIComponent(product.glassType)}`] : []),
+    ...(product.shopCategory ? [`/category/${encodeURIComponent(product.shopCategory)}`] : []),
+    ...(product.collectionSlug ? [`/collections/${encodeURIComponent(product.collectionSlug)}`] : [])
   ];
 }
 
 export function revalidateShopCatalog(input: {
   currentProduct?: CatalogPathInput | null;
   previousProduct?: CatalogPathInput | null;
+  extraPaths?: string[];
 }) {
   const paths = new Set<string>(["/", "/shop"]);
 
@@ -38,7 +40,55 @@ export function revalidateShopCatalog(input: {
     }
   }
 
+  for (const path of input.extraPaths ?? []) {
+    paths.add(path);
+  }
+
   for (const path of paths) {
     revalidatePath(path);
   }
+
+  revalidatePath("/", "layout");
+}
+
+export function getTaxonomyRevalidationPaths(input: {
+  kind: ProductTaxonomyKind;
+  previousSlug?: string;
+  nextSlug?: string;
+  previousName?: string;
+  nextName?: string;
+}) {
+  const paths = new Set<string>(["/", "/shop"]);
+
+  if (input.kind === "collection") {
+    if (input.previousSlug) {
+      paths.add(`/collections/${encodeURIComponent(input.previousSlug)}`);
+    }
+
+    if (input.nextSlug) {
+      paths.add(`/collections/${encodeURIComponent(input.nextSlug)}`);
+    }
+  }
+
+  if (input.kind === "shopCategory") {
+    if (input.previousSlug) {
+      paths.add(`/category/${encodeURIComponent(input.previousSlug)}`);
+    }
+
+    if (input.nextSlug) {
+      paths.add(`/category/${encodeURIComponent(input.nextSlug)}`);
+    }
+  }
+
+  if (input.kind === "glassType") {
+    if (input.previousName) {
+      paths.add(`/category/${encodeURIComponent(input.previousName)}`);
+    }
+
+    if (input.nextName) {
+      paths.add(`/category/${encodeURIComponent(input.nextName)}`);
+    }
+  }
+
+  return Array.from(paths);
 }

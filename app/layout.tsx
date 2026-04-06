@@ -4,6 +4,7 @@ import "@/app/globals.css";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
 import { Providers } from "@/components/providers";
+import { getFilterOptions } from "@/lib/shop";
 
 const sans = Manrope({
   subsets: ["latin"],
@@ -21,18 +22,20 @@ export const metadata: Metadata = {
     "Moderne E-Commerce-Website für hochwertige, vorgravierte Gläser mit klarer Shop-Struktur."
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const filterOptions = await getFilterOptions();
+
   return (
     <html lang="de" className={`${sans.variable} ${serif.variable}`} suppressHydrationWarning>
       <body className="font-[var(--font-sans)] antialiased" suppressHydrationWarning>
         <Providers>
-          <Header />
+          <Header collections={filterOptions.collections} shopCategories={filterOptions.shopCategories} />
           <main>{children}</main>
-          <Footer />
+          <Footer collections={filterOptions.collections} shopCategories={filterOptions.shopCategories} />
         </Providers>
       </body>
     </html>

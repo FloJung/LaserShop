@@ -8,7 +8,7 @@ import { ShoppingCart, Search, PackageSearch, Gift, LayoutGrid, ChevronDown, Men
 import { useCart } from "@/components/cart-provider";
 import { Logo } from "@/components/logo";
 import { MobileMenuAccordion } from "@/components/mobile-menu-accordion";
-import { collections, shopCategories } from "@/lib/data/products";
+import type { DesignerCollection, ShopCategory } from "@/lib/types";
 import { useMobileHeaderVisibility } from "@/lib/use-mobile-header-visibility";
 
 const quickLinks = [
@@ -16,7 +16,13 @@ const quickLinks = [
   { label: "Geschenkideen", href: "/shop?occasion=Hochzeit", icon: Gift }
 ];
 
-export function Header() {
+export function Header({
+  collections,
+  shopCategories
+}: {
+  collections: DesignerCollection[];
+  shopCategories: ShopCategory[];
+}) {
   const { count } = useCart();
   const { isHeaderVisible } = useMobileHeaderVisibility();
   const [isMounted, setIsMounted] = useState(false);

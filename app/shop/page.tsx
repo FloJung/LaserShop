@@ -1,7 +1,7 @@
 import { FilterBar } from "@/components/filter-bar";
 import { ProductCard } from "@/components/product-card";
 import { SectionHeading } from "@/components/section-heading";
-import { filterOptions, filterProducts } from "@/lib/shop";
+import { filterProducts, getFilterOptions } from "@/lib/shop";
 
 function readParam(value: string | string[] | undefined) {
   if (Array.isArray(value)) {
@@ -23,7 +23,7 @@ export default async function ShopPage({
     occasion: readParam(params.occasion)
   };
 
-  const visibleProducts = await filterProducts(filters);
+  const [visibleProducts, filterOptions] = await Promise.all([filterProducts(filters), getFilterOptions()]);
 
   return (
     <section className="section">

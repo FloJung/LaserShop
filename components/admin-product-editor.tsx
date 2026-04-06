@@ -11,9 +11,12 @@ import {
   Layers3,
   LoaderCircle,
   Package2,
+  Plus,
+  Save,
   SlidersHorizontal,
   Star,
   Store,
+  Trash2,
   TriangleAlert
 } from "lucide-react";
 import {
@@ -30,12 +33,12 @@ import {
 import { useRouter } from "next/navigation";
 import { AdminDeleteProductButton } from "@/components/admin-delete-product-button";
 import { AdminProductImageManager } from "@/components/admin-product-image-manager";
-import { collections, glassTypes, occasions, shopCategories } from "@/lib/data/products";
 import {
   getProductPublicationChecklist,
   type ProductPublicationChecklistItem,
   type ProductPublicationChecklistStatus
 } from "@/shared/catalog/publication";
+import type { ProductTaxonomyKind } from "@/shared/catalog";
 
 type EditableVariant = {
   id: string;
@@ -108,12 +111,18 @@ type EditableProduct = {
   shortDescription: string;
   longDescription: string;
   category: string;
+  categoryId?: string;
   shopCategory: string;
+  shopCategoryId?: string;
   glassType: string;
+  glassTypeId?: string;
   collection: string;
+  collectionId?: string;
   collectionSlug: string;
   designer: string;
+  designerId?: string;
   occasion: string;
+  occasionId?: string;
   badge?: string;
   featured: boolean;
   care: string;
@@ -134,8 +143,22 @@ type EditableProduct = {
   options: EditableOption[];
 };
 
+type EditableTaxonomyOption = {
+  id: string;
+  kind: ProductTaxonomyKind;
+  name: string;
+  slug: string;
+  description?: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type EditableTaxonomyCatalog = Record<ProductTaxonomyKind, EditableTaxonomyOption[]>;
+
 type AdminProductEditorProps = {
   product: EditableProduct;
+  taxonomies: EditableTaxonomyCatalog;
 };
 
 type ShopifySyncState = {
@@ -397,6 +420,7 @@ function Field({
   hint,
   publicationStatus,
   publicationHint,
+  plain = false,
   className,
   children
 }: {
@@ -404,6 +428,7 @@ function Field({
   hint?: string;
   publicationStatus?: ProductPublicationChecklistStatus;
   publicationHint?: string;
+  plain?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -423,10 +448,10 @@ function Field({
       </div>
       <div
         className={clsx(
-          hasPublicationState && "rounded-[1rem] border px-2.5 py-2",
-          publicationStatus === "complete" && "border-emerald-200 bg-emerald-50/45",
-          publicationStatus === "incomplete" && "border-amber-200 bg-amber-50/45",
-          publicationStatus === "missing" && "border-rose-200 bg-rose-50/45"
+          !plain && hasPublicationState && "rounded-[1rem] border px-2.5 py-2",
+          !plain && publicationStatus === "complete" && "border-emerald-200 bg-emerald-50/45",
+          !plain && publicationStatus === "incomplete" && "border-amber-200 bg-amber-50/45",
+          !plain && publicationStatus === "missing" && "border-rose-200 bg-rose-50/45"
         )}
       >
         {children}
@@ -616,12 +641,301 @@ function SidebarNav({ sections }: { sections: SectionLink[] }) {
   );
 }
 
-export function AdminProductEditor({ product }: AdminProductEditorProps) {
+function normalizeTaxonomyOptions(options: EditableTaxonomyOption[]) {
+  return [...options].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "de"));
+}
+
+function ManagedTaxonomySelect({
+  label,
+  publicationStatus,
+  publicationHint,
+  selectedId,
+  options,
+  isBusy,
+  newValue,
+  onSelect,
+  onNewValueChange,
+  onCreate,
+  onRenameValueChange,
+  getRenameValue,
+  onRename,
+  onDelete,
+  helperText,
+  className
+}: {
+  label: string;
+  publicationStatus?: ProductPublicationChecklistStatus;
+  publicationHint?: string;
+  selectedId?: string;
+  options: EditableTaxonomyOption[];
+  isBusy: boolean;
+  newValue: string;
+  onSelect: (id: string) => void;
+  onNewValueChange: (value: string) => void;
+  onCreate: () => void | Promise<void>;
+  onRenameValueChange: (taxonomyId: string, value: string) => void;
+  getRenameValue: (taxonomyId: string, fallback: string) => string;
+  onRename: (taxonomyId: string) => void | Promise<void>;
+  onDelete: (taxonomyId: string) => void | Promise<void>;
+  helperText?: string;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedOption = options.find((option) => option.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node | null;
+      if (!target || containerRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsOpen(false);
+      setEditingId(null);
+      setIsAdding(false);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      setIsOpen(false);
+      setEditingId(null);
+      setIsAdding(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  async function handleCreate() {
+    if (!newValue.trim()) {
+      return;
+    }
+
+    await onCreate();
+    setIsAdding(false);
+  }
+
+  async function handleRename(taxonomyId: string) {
+    const option = options.find((entry) => entry.id === taxonomyId);
+    const nextValue = getRenameValue(taxonomyId, option?.name ?? "");
+    if (!nextValue.trim()) {
+      return;
+    }
+
+    await onRename(taxonomyId);
+    setEditingId(null);
+  }
+
+  async function handleDelete(taxonomyId: string) {
+    await onDelete(taxonomyId);
+    if (editingId === taxonomyId) {
+      setEditingId(null);
+    }
+  }
+
+  return (
+    <Field
+      label={label}
+      publicationStatus={publicationStatus}
+      publicationHint={publicationHint ?? helperText}
+      plain
+      className={className}
+    >
+      <div ref={containerRef} className="relative">
+        <button
+          type="button"
+          disabled={isBusy}
+          aria-expanded={isOpen}
+          onClick={() => {
+            setIsOpen((current) => !current);
+            if (isOpen) {
+              setEditingId(null);
+              setIsAdding(false);
+            }
+          }}
+          className="flex h-8 w-full items-center justify-between border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+        >
+          <span className="truncate text-left">{selectedOption?.name ?? "Nicht gesetzt"}</span>
+          <ChevronDown className={clsx("h-3.5 w-3.5 shrink-0 text-slate-500", isOpen && "rotate-180")} />
+        </button>
+
+        {isOpen ? (
+          <div className="absolute left-0 right-0 top-full z-20 border border-t-0 border-slate-300 bg-white">
+            <div className="max-h-56 overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelect("");
+                  setIsOpen(false);
+                  setEditingId(null);
+                  setIsAdding(false);
+                }}
+                className={clsx(
+                  "flex h-8 w-full items-center px-2 text-left text-sm",
+                  !selectedId && "bg-slate-100 font-medium",
+                  selectedId && "hover:bg-slate-50"
+                )}
+              >
+                Nicht gesetzt
+              </button>
+
+              {normalizeTaxonomyOptions(options).map((option) => {
+                const isEditing = editingId === option.id;
+                const renameValue = getRenameValue(option.id, option.name);
+
+                return (
+                  <div
+                    key={option.id}
+                    className={clsx(
+                      "grid min-h-8 grid-cols-[minmax(0,1fr)_28px_28px] border-t border-slate-300",
+                      selectedId === option.id && !isEditing && "bg-slate-100"
+                    )}
+                  >
+                    {isEditing ? (
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(event) => onRenameValueChange(option.id, event.target.value)}
+                        disabled={isBusy}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleRename(option.id);
+                          }
+
+                          if (event.key === "Escape") {
+                            setEditingId(null);
+                          }
+                        }}
+                        className="min-w-0 border-0 px-2 text-sm text-slate-900 outline-none"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelect(option.id);
+                          setIsOpen(false);
+                          setEditingId(null);
+                          setIsAdding(false);
+                        }}
+                        className="truncate px-2 text-left text-sm hover:bg-slate-50"
+                      >
+                        {option.name}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isEditing) {
+                          void handleRename(option.id);
+                          return;
+                        }
+
+                        setEditingId(option.id);
+                        setIsAdding(false);
+                      }}
+                      title={isEditing ? "Speichern" : "Bearbeiten"}
+                      aria-label={isEditing ? `${label} speichern` : `${label} bearbeiten`}
+                      className="flex h-7 w-7 items-center justify-center border-l border-slate-300 text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                      disabled={isBusy || (isEditing && !renameValue.trim())}
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleDelete(option.id);
+                      }}
+                      title="Loeschen"
+                      aria-label={`${label} loeschen`}
+                      className="flex h-7 w-7 items-center justify-center border-l border-slate-300 text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                      disabled={isBusy}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {isAdding ? (
+                <div className="grid min-h-8 grid-cols-[minmax(0,1fr)_28px] border-t border-slate-300">
+                  <input
+                    autoFocus
+                    value={newValue}
+                    onChange={(event) => onNewValueChange(event.target.value)}
+                    placeholder={`${label} hinzufuegen`}
+                    disabled={isBusy}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleCreate();
+                      }
+
+                      if (event.key === "Escape") {
+                        setIsAdding(false);
+                      }
+                    }}
+                    className="min-w-0 border-0 px-2 text-sm text-slate-900 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCreate();
+                    }}
+                    title="Hinzufuegen"
+                    aria-label={`${label} hinzufuegen`}
+                    className="flex h-7 w-7 items-center justify-center border-l border-slate-300 text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
+                    disabled={isBusy || !newValue.trim()}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdding(true);
+                    setEditingId(null);
+                  }}
+                  className="flex h-8 w-full items-center border-t border-slate-300 px-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  disabled={isBusy}
+                >
+                  + Hinzufuegen
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Field>
+  );
+}
+
+export function AdminProductEditor({ product, taxonomies }: AdminProductEditorProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(product);
   const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(product));
+  const [taxonomyCatalog, setTaxonomyCatalog] = useState(taxonomies);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [taxonomyMessage, setTaxonomyMessage] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<ShopifySyncState | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -633,6 +947,16 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
   const [openOptionIds, setOpenOptionIds] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(product.options.map((option, index) => [option.id, index === 0]))
   );
+  const [newTaxonomyValues, setNewTaxonomyValues] = useState<Record<ProductTaxonomyKind, string>>({
+    category: "",
+    shopCategory: "",
+    glassType: "",
+    occasion: "",
+    collection: "",
+    designer: ""
+  });
+  const [taxonomyRenameValues, setTaxonomyRenameValues] = useState<Record<string, string>>({});
+  const [taxonomyBusyKey, setTaxonomyBusyKey] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const benefitsText = joinLines(draft.benefits);
@@ -698,6 +1022,274 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
       ...current,
       [key]: value
     }));
+  }
+
+  function applyDraftTaxonomy(kind: ProductTaxonomyKind, selected: EditableTaxonomyOption | null) {
+    setDraft((current) => {
+      if (kind === "category") {
+        return {
+          ...current,
+          category: selected?.name ?? "",
+          categoryId: selected?.id,
+          ...(selected ? {} : { status: "draft" as const })
+        };
+      }
+
+      if (kind === "shopCategory") {
+        return {
+          ...current,
+          shopCategory: selected?.slug ?? "",
+          shopCategoryId: selected?.id,
+          ...(selected ? {} : { status: "draft" as const })
+        };
+      }
+
+      if (kind === "glassType") {
+        return {
+          ...current,
+          glassType: selected?.name ?? "",
+          glassTypeId: selected?.id,
+          ...(selected ? {} : { status: "draft" as const })
+        };
+      }
+
+      if (kind === "occasion") {
+        return {
+          ...current,
+          occasion: selected?.name ?? "",
+          occasionId: selected?.id,
+          ...(selected ? {} : { status: "draft" as const })
+        };
+      }
+
+      if (kind === "collection") {
+        return {
+          ...current,
+          collection: selected?.name ?? "",
+          collectionId: selected?.id,
+          collectionSlug: selected?.slug ?? "",
+          ...(selected ? {} : { status: "draft" as const })
+        };
+      }
+
+      return {
+        ...current,
+        designer: selected?.name ?? "",
+        designerId: selected?.id,
+        ...(selected ? {} : { status: "draft" as const })
+      };
+    });
+  }
+
+  function updateDraftTaxonomy(kind: ProductTaxonomyKind, taxonomyId: string) {
+    const selected = taxonomyCatalog[kind].find((entry) => entry.id === taxonomyId) ?? null;
+    applyDraftTaxonomy(kind, selected);
+  }
+
+  function getSelectedTaxonomyId(kind: ProductTaxonomyKind) {
+    if (kind === "category") {
+      return draft.categoryId;
+    }
+
+    if (kind === "shopCategory") {
+      return draft.shopCategoryId;
+    }
+
+    if (kind === "glassType") {
+      return draft.glassTypeId;
+    }
+
+    if (kind === "occasion") {
+      return draft.occasionId;
+    }
+
+    if (kind === "collection") {
+      return draft.collectionId;
+    }
+
+    return draft.designerId;
+  }
+
+  function getTaxonomyLabel(kind: ProductTaxonomyKind) {
+    if (kind === "category") {
+      return "Kategorie";
+    }
+
+    if (kind === "shopCategory") {
+      return "Shop-Kategorie";
+    }
+
+    if (kind === "glassType") {
+      return "Glasart";
+    }
+
+    if (kind === "occasion") {
+      return "Anlass";
+    }
+
+    if (kind === "collection") {
+      return "Kollektion";
+    }
+
+    return "Designer";
+  }
+
+  function setNewTaxonomyValue(kind: ProductTaxonomyKind, value: string) {
+    setNewTaxonomyValues((current) => ({
+      ...current,
+      [kind]: value
+    }));
+  }
+
+  function getTaxonomyRenameValue(taxonomyId: string, fallback: string) {
+    return taxonomyRenameValues[taxonomyId] ?? fallback;
+  }
+
+  async function createTaxonomy(kind: ProductTaxonomyKind) {
+    setSaveError(null);
+    setSaveMessage(null);
+    setTaxonomyMessage(null);
+    setTaxonomyBusyKey(`${kind}:create`);
+
+    try {
+      const response = await fetch("/api/admin/product-taxonomies", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          kind,
+          name: newTaxonomyValues[kind]
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            taxonomy?: EditableTaxonomyOption;
+            message?: string;
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !payload?.taxonomy) {
+        setSaveError(payload?.error ?? `${getTaxonomyLabel(kind)} konnte nicht hinzugefuegt werden.`);
+        return;
+      }
+
+      setTaxonomyCatalog((current) => ({
+        ...current,
+        [kind]: normalizeTaxonomyOptions([...current[kind], payload.taxonomy!])
+      }));
+      applyDraftTaxonomy(kind, payload.taxonomy);
+      setNewTaxonomyValue(kind, "");
+      setTaxonomyMessage(payload.message ?? `${getTaxonomyLabel(kind)} hinzugefuegt.`);
+    } finally {
+      setTaxonomyBusyKey(null);
+    }
+  }
+
+  async function renameTaxonomy(kind: ProductTaxonomyKind, taxonomyId: string) {
+    setSaveError(null);
+    setSaveMessage(null);
+    setTaxonomyMessage(null);
+    setTaxonomyBusyKey(`${kind}:rename:${taxonomyId}`);
+
+    try {
+      const response = await fetch(`/api/admin/product-taxonomies/${kind}/${taxonomyId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: getTaxonomyRenameValue(
+            taxonomyId,
+            taxonomyCatalog[kind].find((entry) => entry.id === taxonomyId)?.name ?? ""
+          )
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            taxonomy?: EditableTaxonomyOption;
+            affectedProductIds?: string[];
+            message?: string;
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !payload?.taxonomy) {
+        setSaveError(payload?.error ?? `${getTaxonomyLabel(kind)} konnte nicht aktualisiert werden.`);
+        return;
+      }
+
+      setTaxonomyCatalog((current) => ({
+        ...current,
+        [kind]: normalizeTaxonomyOptions(
+          current[kind].map((entry) => (entry.id === taxonomyId ? payload.taxonomy! : entry))
+        )
+      }));
+      if (getSelectedTaxonomyId(kind) === taxonomyId) {
+        applyDraftTaxonomy(kind, payload.taxonomy);
+      }
+
+      setTaxonomyMessage(
+        payload.message ??
+          `${getTaxonomyLabel(kind)} aktualisiert. ${payload.affectedProductIds?.length ?? 0} Produkte global angepasst.`
+      );
+    } finally {
+      setTaxonomyBusyKey(null);
+    }
+  }
+
+  async function deleteTaxonomy(kind: ProductTaxonomyKind, taxonomyId: string) {
+    const taxonomy = taxonomyCatalog[kind].find((entry) => entry.id === taxonomyId);
+    if (!taxonomy) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Bist du sicher, dass du diese ${getTaxonomyLabel(kind)} loeschen moechtest?\nAlle betroffenen Produkte werden angepasst und auf Draft gesetzt.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setSaveError(null);
+    setSaveMessage(null);
+    setTaxonomyMessage(null);
+    setTaxonomyBusyKey(`${kind}:delete:${taxonomyId}`);
+
+    try {
+      const response = await fetch(`/api/admin/product-taxonomies/${kind}/${taxonomyId}`, {
+        method: "DELETE"
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            draftedProductIds?: string[];
+            message?: string;
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok) {
+        setSaveError(payload?.error ?? `${getTaxonomyLabel(kind)} konnte nicht geloescht werden.`);
+        return;
+      }
+
+      setTaxonomyCatalog((current) => ({
+        ...current,
+        [kind]: current[kind].filter((entry) => entry.id !== taxonomyId)
+      }));
+
+      if (getSelectedTaxonomyId(kind) === taxonomyId) {
+        applyDraftTaxonomy(kind, null);
+      }
+
+      setTaxonomyMessage(
+        payload?.message ??
+          `${getTaxonomyLabel(kind)} geloescht. ${payload?.draftedProductIds?.length ?? 0} Produkte wurden auf Draft gesetzt.`
+      );
+    } finally {
+      setTaxonomyBusyKey(null);
+    }
   }
 
   function replacePersistedImages(
@@ -809,6 +1401,7 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
 
   async function handleSave() {
     setSaveMessage(null);
+    setTaxonomyMessage(null);
     setSyncError(null);
 
     const result = await persistDraft(true);
@@ -841,6 +1434,7 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
 
     setSaveMessage(null);
     setSaveError(null);
+    setTaxonomyMessage(null);
     setSyncError(null);
     setIsTogglingFeatured(true);
 
@@ -895,6 +1489,7 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
   async function handleShopifySync() {
     setSyncError(null);
     setSaveError(null);
+    setTaxonomyMessage(null);
     setSyncState(null);
 
     if (hasUnsavedChanges) {
@@ -1286,11 +1881,12 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
           </div>
         </div>
 
-        {saveError || saveMessage || syncError || syncState ? (
+        {saveError || saveMessage || taxonomyMessage || syncError || syncState ? (
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-3">
               {saveError ? <p className="admin-alert admin-alert-error">{saveError}</p> : null}
               {saveMessage ? <p className="admin-alert admin-alert-success">{saveMessage}</p> : null}
+              {taxonomyMessage ? <p className="admin-alert admin-alert-success">{taxonomyMessage}</p> : null}
               {syncError ? <p className="admin-alert admin-alert-error">{syncError}</p> : null}
             </div>
 
@@ -1563,101 +2159,125 @@ export function AdminProductEditor({ product }: AdminProductEditorProps) {
                 title="Shop-Zuordnung fuer active"
                 items={[publicationItemsById["shop-assignment"]]}
               />
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <Field
+              <div className="grid gap-1 md:grid-cols-2 xl:grid-cols-3">
+                <ManagedTaxonomySelect
                   label="Kategorie"
                   publicationStatus={publicationItemsById["shop-assignment"].status}
                   publicationHint={publicationItemsById["shop-assignment"].detail}
-                >
-                  <CompactInput
-                    value={draft.category}
-                    onChange={(event) => setField("category", event.target.value)}
-                  />
-                </Field>
+                  selectedId={draft.categoryId}
+                  options={taxonomyCatalog.category}
+                  isBusy={Boolean(taxonomyBusyKey)}
+                  newValue={newTaxonomyValues.category}
+                  onSelect={(id) => updateDraftTaxonomy("category", id)}
+                  onNewValueChange={(value) => setNewTaxonomyValue("category", value)}
+                  onCreate={() => createTaxonomy("category")}
+                  onRenameValueChange={(taxonomyId, value) =>
+                    setTaxonomyRenameValues((current) => ({ ...current, [taxonomyId]: value }))
+                  }
+                  getRenameValue={getTaxonomyRenameValue}
+                  onRename={(taxonomyId) => renameTaxonomy("category", taxonomyId)}
+                  onDelete={(taxonomyId) => deleteTaxonomy("category", taxonomyId)}
+                />
 
-                <Field
+                <ManagedTaxonomySelect
                   label="Shop-Kategorie"
                   publicationStatus={publicationItemsById["shop-assignment"].status}
                   publicationHint="Wird fuer Shop-Listen und Routing mitgeprueft."
-                >
-                  <CompactSelect
-                    value={draft.shopCategory}
-                    onChange={(event) => setField("shopCategory", event.target.value)}
-                  >
-                    {shopCategories.map((category) => (
-                      <option key={category.slug} value={category.slug}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </CompactSelect>
-                </Field>
+                  selectedId={draft.shopCategoryId}
+                  options={taxonomyCatalog.shopCategory}
+                  isBusy={Boolean(taxonomyBusyKey)}
+                  newValue={newTaxonomyValues.shopCategory}
+                  onSelect={(id) => updateDraftTaxonomy("shopCategory", id)}
+                  onNewValueChange={(value) => setNewTaxonomyValue("shopCategory", value)}
+                  onCreate={() => createTaxonomy("shopCategory")}
+                  onRenameValueChange={(taxonomyId, value) =>
+                    setTaxonomyRenameValues((current) => ({ ...current, [taxonomyId]: value }))
+                  }
+                  getRenameValue={getTaxonomyRenameValue}
+                  onRename={(taxonomyId) => renameTaxonomy("shopCategory", taxonomyId)}
+                  onDelete={(taxonomyId) => deleteTaxonomy("shopCategory", taxonomyId)}
+                />
 
-                <Field label="Glasart">
-                  <CompactSelect
-                    value={draft.glassType}
-                    onChange={(event) => setField("glassType", event.target.value)}
-                  >
-                    {glassTypes.map((glassType) => (
-                      <option key={glassType} value={glassType}>
-                        {glassType}
-                      </option>
-                    ))}
-                  </CompactSelect>
-                </Field>
+                <ManagedTaxonomySelect
+                  label="Glasart"
+                  selectedId={draft.glassTypeId}
+                  options={taxonomyCatalog.glassType}
+                  isBusy={Boolean(taxonomyBusyKey)}
+                  newValue={newTaxonomyValues.glassType}
+                  onSelect={(id) => updateDraftTaxonomy("glassType", id)}
+                  onNewValueChange={(value) => setNewTaxonomyValue("glassType", value)}
+                  onCreate={() => createTaxonomy("glassType")}
+                  onRenameValueChange={(taxonomyId, value) =>
+                    setTaxonomyRenameValues((current) => ({ ...current, [taxonomyId]: value }))
+                  }
+                  getRenameValue={getTaxonomyRenameValue}
+                  onRename={(taxonomyId) => renameTaxonomy("glassType", taxonomyId)}
+                  onDelete={(taxonomyId) => deleteTaxonomy("glassType", taxonomyId)}
+                />
 
-                <Field label="Anlass">
-                  <CompactSelect
-                    value={draft.occasion}
-                    onChange={(event) => setField("occasion", event.target.value)}
-                  >
-                    {occasions.map((occasion) => (
-                      <option key={occasion} value={occasion}>
-                        {occasion}
-                      </option>
-                    ))}
-                  </CompactSelect>
-                </Field>
+                <ManagedTaxonomySelect
+                  label="Anlass"
+                  selectedId={draft.occasionId}
+                  options={taxonomyCatalog.occasion}
+                  isBusy={Boolean(taxonomyBusyKey)}
+                  newValue={newTaxonomyValues.occasion}
+                  onSelect={(id) => updateDraftTaxonomy("occasion", id)}
+                  onNewValueChange={(value) => setNewTaxonomyValue("occasion", value)}
+                  onCreate={() => createTaxonomy("occasion")}
+                  onRenameValueChange={(taxonomyId, value) =>
+                    setTaxonomyRenameValues((current) => ({ ...current, [taxonomyId]: value }))
+                  }
+                  getRenameValue={getTaxonomyRenameValue}
+                  onRename={(taxonomyId) => renameTaxonomy("occasion", taxonomyId)}
+                  onDelete={(taxonomyId) => deleteTaxonomy("occasion", taxonomyId)}
+                />
 
-                <Field
+                <ManagedTaxonomySelect
                   label="Kollektion"
                   publicationStatus={publicationItemsById["shop-assignment"].status}
                   publicationHint="Kollektion und Slug muessen fuer die Veroeffentlichung gesetzt sein."
-                >
-                  <CompactSelect
-                    value={draft.collectionSlug}
-                    onChange={(event) => {
-                      const selected = collections.find((entry) => entry.slug === event.target.value);
-                      setDraft((current) => ({
-                        ...current,
-                        collectionSlug: event.target.value,
-                        collection: selected?.name ?? current.collection,
-                        designer: selected?.creator ?? current.designer
-                      }));
-                    }}
-                  >
-                    {collections.map((collection) => (
-                      <option key={collection.slug} value={collection.slug}>
-                        {collection.name}
-                      </option>
-                    ))}
-                  </CompactSelect>
-                </Field>
+                  selectedId={draft.collectionId}
+                  options={taxonomyCatalog.collection}
+                  isBusy={Boolean(taxonomyBusyKey)}
+                  newValue={newTaxonomyValues.collection}
+                  onSelect={(id) => updateDraftTaxonomy("collection", id)}
+                  onNewValueChange={(value) => setNewTaxonomyValue("collection", value)}
+                  onCreate={() => createTaxonomy("collection")}
+                  onRenameValueChange={(taxonomyId, value) =>
+                    setTaxonomyRenameValues((current) => ({ ...current, [taxonomyId]: value }))
+                  }
+                  getRenameValue={getTaxonomyRenameValue}
+                  onRename={(taxonomyId) => renameTaxonomy("collection", taxonomyId)}
+                  onDelete={(taxonomyId) => deleteTaxonomy("collection", taxonomyId)}
+                />
+
+                <ManagedTaxonomySelect
+                  label="Designer"
+                  selectedId={draft.designerId}
+                  options={taxonomyCatalog.designer}
+                  isBusy={Boolean(taxonomyBusyKey)}
+                  newValue={newTaxonomyValues.designer}
+                  onSelect={(id) => updateDraftTaxonomy("designer", id)}
+                  onNewValueChange={(value) => setNewTaxonomyValue("designer", value)}
+                  onCreate={() => createTaxonomy("designer")}
+                  onRenameValueChange={(taxonomyId, value) =>
+                    setTaxonomyRenameValues((current) => ({ ...current, [taxonomyId]: value }))
+                  }
+                  getRenameValue={getTaxonomyRenameValue}
+                  onRename={(taxonomyId) => renameTaxonomy("designer", taxonomyId)}
+                  onDelete={(taxonomyId) => deleteTaxonomy("designer", taxonomyId)}
+                />
 
                 <Field
-                  label="Kollektionstitel"
+                  label="Kollektion-Slug"
                   publicationStatus={publicationItemsById["shop-assignment"].status}
-                  publicationHint="Der lesbare Kollektionstitel wird ebenfalls im Backend geprueft."
+                  publicationHint="Wird automatisch aus der gewaelten Kollektion gepflegt."
+                  plain
                 >
-                  <CompactInput
-                    value={draft.collection}
-                    onChange={(event) => setField("collection", event.target.value)}
-                  />
-                </Field>
-
-                <Field label="Designer" className="md:col-span-2 xl:col-span-1">
-                  <CompactInput
-                    value={draft.designer}
-                    onChange={(event) => setField("designer", event.target.value)}
+                  <input
+                    value={draft.collectionSlug}
+                    readOnly
+                    className="h-8 w-full rounded-none border border-slate-300 bg-slate-100 px-2 text-sm text-slate-900 shadow-none outline-none"
                   />
                 </Field>
               </div>

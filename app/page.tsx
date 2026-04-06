@@ -7,19 +7,15 @@ import { ProductCard } from "@/components/product-card";
 import { SectionHeading } from "@/components/section-heading";
 import { Testimonials } from "@/components/testimonials";
 import { TrustStrip } from "@/components/trust-strip";
-import { collections, shopCategories } from "@/lib/data/products";
-import { getFeaturedProducts } from "@/lib/shop";
-
-const giftIdeas = [
-  { label: "Hochzeit", href: "/shop?occasion=Hochzeit" },
-  { label: "Geburtstag", href: "/shop?occasion=Geburtstag" },
-  { label: "Jubiläum", href: "/shop?occasion=Jubiläum" },
-  { label: "Lustig", href: "/shop?occasion=Lustig" },
-  { label: "Elegant", href: "/shop?occasion=Elegant" }
-];
+import { getFeaturedProducts, getFilterOptions } from "@/lib/shop";
 
 export default async function HomePage() {
-  const featuredProducts = await getFeaturedProducts(8);
+  const [featuredProducts, filterOptions] = await Promise.all([getFeaturedProducts(8), getFilterOptions()]);
+  const heroCollection = filterOptions.collections[0];
+  const giftIdeas = filterOptions.occasions.slice(0, 5).map((occasion) => ({
+    label: occasion.name,
+    href: `/shop?occasion=${encodeURIComponent(occasion.name)}`
+  }));
 
   return (
     <>
@@ -30,10 +26,10 @@ export default async function HomePage() {
               <Sparkles size={16} /> Hochwertige Lasergravuren
             </p>
             <h1 className="mt-5 max-w-xl font-[var(--font-serif)] text-4xl leading-tight md:text-6xl">
-              Gravierte Gläser mit Boutique-Look und klarer Shop-Logik
+              Gravierte Glaeser mit Boutique-Look und klarer Shop-Logik
             </h1>
             <p className="mt-4 max-w-xl text-lg text-[var(--text-soft)]">
-              Entdecke fertige Designgläser für Geschenke und besondere Momente. Schnell finden, sofort kaufen.
+              Entdecke fertige Designglaeser fuer Geschenke und besondere Momente. Schnell finden, sofort kaufen.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
@@ -44,10 +40,10 @@ export default async function HomePage() {
                 Jetzt shoppen
               </Link>
               <Link
-                href="/collections/studio"
+                href={heroCollection ? `/collections/${heroCollection.slug}` : "/shop"}
                 className="rounded-full border border-[var(--line)] bg-white px-6 py-3 text-sm font-semibold transition hover:border-[var(--brand)]"
               >
-                Studio Kollektion ansehen
+                {heroCollection ? `${heroCollection.name} ansehen` : "Kollektion ansehen"}
               </Link>
             </div>
           </div>
@@ -56,7 +52,7 @@ export default async function HomePage() {
             <div className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem]">
               <Image
                 src="/images/glas/2er-set-weinglas-ringe-personalisiert-699d1e.jpg"
-                alt="Hero Bild mit gravierten Gläsern"
+                alt="Hero Bild mit gravierten Glaesern"
                 fill
                 className="object-cover"
                 priority
@@ -71,9 +67,9 @@ export default async function HomePage() {
           <SectionHeading
             eyebrow="Designwelten"
             title="Kuratierte Designer-Kollektionen"
-            description="Drei eigenstaendige Collection-Bereiche innerhalb derselben Marke für schnelle Orientierung und klares Styling."
+            description="Eigenstaendige Collection-Bereiche innerhalb derselben Marke fuer schnelle Orientierung und klares Styling."
           />
-          <DesignWorldGrid collections={collections} />
+          <DesignWorldGrid collections={filterOptions.collections} />
         </div>
       </section>
 
@@ -82,10 +78,10 @@ export default async function HomePage() {
           <SectionHeading
             eyebrow="Kategorien"
             title="Nach Angebotsbereich shoppen"
-            description="Drei klare Einstiege für das gesamte Sortiment: alle Gläser, passende Untersetzer und gebuendelte Deals."
+            description="Klare Einstiege fuer das gesamte Sortiment: Kategorien, Untersetzer und gebuendelte Deals."
           />
           <div className="grid gap-3 md:grid-cols-3">
-            {shopCategories.map((category) => (
+            {filterOptions.shopCategories.map((category) => (
               <Link
                 key={category.slug}
                 href={`/category/${category.slug}`}
@@ -108,7 +104,7 @@ export default async function HomePage() {
           <SectionHeading
             eyebrow="Bestseller"
             title="Beliebte Produkte"
-            description="Preis, Designwelt und Kaufbutton direkt sichtbar für hohe Scanbarkeit und schnelle Entscheidungen."
+            description="Preis, Designwelt und Kaufbutton direkt sichtbar fuer hohe Scanbarkeit und schnelle Entscheidungen."
             action={
               <Link href="/shop" className="text-sm font-semibold text-[var(--brand)]">
                 Alle Produkte ansehen
@@ -129,7 +125,7 @@ export default async function HomePage() {
           <SectionHeading
             eyebrow="Geschenkideen"
             title="Finde Designs nach Anlass"
-            description="Schneller Conversion-Pfad: Anlass wählen, relevante Produkte sehen, sofort kaufen."
+            description="Anlass waehlen, relevante Produkte sehen, sofort kaufen."
           />
           <div className="flex flex-wrap gap-3">
             {giftIdeas.map((idea) => (
@@ -151,4 +147,3 @@ export default async function HomePage() {
     </>
   );
 }
-

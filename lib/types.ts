@@ -1,15 +1,8 @@
-export type GlassType =
-  | "Sektgläser"
-  | "Schnapsgläser"
-  | "Biergläser"
-  | "Trinkgläser"
-  | "Glasuntersätzer"
-  | "Bundle-Angebote";
-
-export type CollectionSlug = "flo" | "andrea" | "studio";
-export type ShopCategorySlug = "alle-glaeser" | "glasuntersetzer" | "bundle-angebote";
-
-export type Occasion = "Hochzeit" | "Geburtstag" | "Jubiläum" | "Lustig" | "Elegant";
+export type GlassType = string;
+export type CollectionSlug = string;
+export type ShopCategorySlug = string;
+export type Occasion = string;
+export type TaxonomySlug = string;
 
 export type Product = {
   id: string;
@@ -17,12 +10,19 @@ export type Product = {
   price: number;
   image: string;
   gallery: string[];
+  category?: string;
+  categoryId?: string;
   glassType: GlassType;
+  glassTypeId?: string;
   shopCategory: ShopCategorySlug;
+  shopCategoryId?: string;
   collection: string;
+  collectionId?: string;
   collectionSlug: CollectionSlug;
   designer: string;
+  designerId?: string;
   occasion: Occasion;
+  occasionId?: string;
   description: string;
   badge?: string;
   featured: boolean;
@@ -38,17 +38,26 @@ export type Product = {
 };
 
 export type DesignerCollection = {
+  id?: string;
   slug: CollectionSlug;
   name: string;
   creator: string;
   description: string;
   image: string;
   accent: string;
+  productCount?: number;
 };
 
 export type ShopCategory = {
+  id?: string;
   slug: ShopCategorySlug;
   name: string;
   description: string;
 };
 
+export type TaxonomyOption = {
+  id?: string;
+  slug: TaxonomySlug;
+  name: string;
+  description?: string;
+};

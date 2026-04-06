@@ -9,6 +9,7 @@ import {
   syncProductStatusToShopify,
   validateProductForPublishing
 } from "@/lib/server/product-publication";
+import { resolveProductTaxonomyFields } from "@/lib/server/product-taxonomies";
 import { editableProductPayloadSchema } from "@/shared/catalog";
 import { isAdminRole } from "@/shared/firebase/roles";
 
@@ -140,6 +141,10 @@ export async function PUT(request: Request, context: { params: Promise<{ product
   let payload: ReturnType<typeof normalizePayload>;
   try {
     payload = normalizePayload(await request.json());
+    payload = {
+      ...payload,
+      ...(await resolveProductTaxonomyFields(payload))
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid payload.";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -175,12 +180,18 @@ export async function PUT(request: Request, context: { params: Promise<{ product
       shortDescription: payload.shortDescription,
       longDescription: payload.longDescription,
       category: payload.category,
+      ...(payload.categoryId ? { categoryId: payload.categoryId } : {}),
       shopCategory: payload.shopCategory,
+      ...(payload.shopCategoryId ? { shopCategoryId: payload.shopCategoryId } : {}),
       glassType: payload.glassType,
+      ...(payload.glassTypeId ? { glassTypeId: payload.glassTypeId } : {}),
       collection: payload.collection,
+      ...(payload.collectionId ? { collectionId: payload.collectionId } : {}),
       collectionSlug: payload.collectionSlug,
       designer: payload.designer,
+      ...(payload.designerId ? { designerId: payload.designerId } : {}),
       occasion: payload.occasion,
+      ...(payload.occasionId ? { occasionId: payload.occasionId } : {}),
       ...(payload.badge ? { badge: payload.badge } : {}),
       featured: payload.featured,
       care: payload.care,

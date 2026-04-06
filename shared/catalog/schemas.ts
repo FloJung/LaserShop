@@ -11,6 +11,7 @@ import {
   PRODUCT_IMAGE_SYNC_STATUSES,
   PRODUCT_OPTION_TYPES,
   PRODUCT_SHOPIFY_SYNC_STATUSES,
+  PRODUCT_TAXONOMY_KINDS,
   PRODUCT_STATUSES,
   PRODUCTION_STATUSES,
   STOCK_MODES,
@@ -78,6 +79,7 @@ export const optionPricingModeSchema = z.enum(OPTION_PRICING_MODES);
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
 export const productImageSyncStatusSchema = z.enum(PRODUCT_IMAGE_SYNC_STATUSES);
 export const productShopifySyncStatusSchema = z.enum(PRODUCT_SHOPIFY_SYNC_STATUSES);
+export const productTaxonomyKindSchema = z.enum(PRODUCT_TAXONOMY_KINDS);
 export const orderStatusSchema = z.enum(ORDER_STATUSES);
 export const productionStatusSchema = z.enum(PRODUCTION_STATUSES);
 export const uploadReviewStatusSchema = z.enum(UPLOAD_REVIEW_STATUSES);
@@ -88,13 +90,19 @@ export const productDocumentSchema = z.object({
   slug: z.string().trim().min(1).max(180),
   shortDescription: z.string().trim().min(1).max(300),
   longDescription: z.string().trim().min(1).max(5_000),
-  category: z.string().trim().min(1).max(80),
-  shopCategory: z.string().trim().min(1).max(80),
-  glassType: z.string().trim().min(1).max(80),
-  collection: z.string().trim().min(1).max(120),
-  collectionSlug: z.string().trim().min(1).max(80),
-  designer: z.string().trim().min(1).max(120),
-  occasion: z.string().trim().min(1).max(80),
+  category: z.string().trim().max(80),
+  categoryId: z.string().trim().max(120).optional(),
+  shopCategory: z.string().trim().max(80),
+  shopCategoryId: z.string().trim().max(120).optional(),
+  glassType: z.string().trim().max(80),
+  glassTypeId: z.string().trim().max(120).optional(),
+  collection: z.string().trim().max(120),
+  collectionId: z.string().trim().max(120).optional(),
+  collectionSlug: z.string().trim().max(80),
+  designer: z.string().trim().max(120),
+  designerId: z.string().trim().max(120).optional(),
+  occasion: z.string().trim().max(80),
+  occasionId: z.string().trim().max(120).optional(),
   badge: z.string().trim().max(80).optional(),
   featured: z.boolean(),
   care: z.string().trim().min(1).max(500),
@@ -108,6 +116,15 @@ export const productDocumentSchema = z.object({
   shopifyLastAttemptedAt: z.string().optional(),
   isPersonalizable: z.boolean(),
   defaultVariantId: z.string().trim().max(120).optional(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+
+export const productTaxonomyDocumentSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(400).optional(),
+  sortOrder: z.number().int().min(0).max(5_000),
   createdAt: z.string(),
   updatedAt: z.string()
 });

@@ -1,6 +1,10 @@
-import { collections, glassTypes, occasions, shopCategories } from "@/lib/data/products";
 import type { CollectionSlug, Product, ShopCategorySlug } from "@/lib/types";
 import { getStorefrontProducts } from "@/lib/server/catalog-source";
+import {
+  getStorefrontCollections,
+  getStorefrontFilterOptions,
+  getStorefrontShopCategories
+} from "@/lib/server/product-taxonomies";
 
 export function isProductFeatured(product: Product) {
   return product.featured;
@@ -14,8 +18,8 @@ export async function getProductsByCollection(slug: CollectionSlug) {
   return (await getStorefrontProducts()).filter((product) => product.collectionSlug === slug);
 }
 
-export function getCollection(slug: CollectionSlug) {
-  return collections.find((collection) => collection.slug === slug);
+export async function getCollection(slug: CollectionSlug) {
+  return (await getStorefrontCollections()).find((collection) => collection.slug === slug);
 }
 
 export async function getProductsByGlassType(glassType: string) {
@@ -26,8 +30,8 @@ export async function getProductsByShopCategory(slug: ShopCategorySlug) {
   return (await getStorefrontProducts()).filter((product) => product.shopCategory === slug);
 }
 
-export function getShopCategory(slug: ShopCategorySlug) {
-  return shopCategories.find((category) => category.slug === slug);
+export async function getShopCategory(slug: ShopCategorySlug) {
+  return (await getStorefrontShopCategories()).find((category) => category.slug === slug);
 }
 
 export async function getProductById(id: string) {
@@ -79,10 +83,7 @@ export async function filterProducts(params: {
   });
 }
 
-export const filterOptions = {
-  glassTypes,
-  occasions,
-  collections,
-  shopCategories
-};
+export async function getFilterOptions() {
+  return getStorefrontFilterOptions();
+}
 

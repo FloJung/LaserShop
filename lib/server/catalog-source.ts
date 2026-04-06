@@ -4,6 +4,7 @@ import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { unstable_noStore as noStore } from "next/cache";
 import { getAdminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
 import { normalizeLegacyProductImage } from "@/lib/server/product-image-normalization";
+import { getProductTaxonomyCatalog, resolveProductTaxonomyFields, type ProductTaxonomyCatalog } from "@/lib/server/product-taxonomies";
 import { products as staticProducts } from "@/lib/data/products";
 import { isProductVisibleInShop } from "@/lib/server/product-publication";
 import { validateProductForPublishing } from "@/lib/server/product-publication";
@@ -241,7 +242,7 @@ function valuesOrNoValuesAllowed(option: StorefrontOption) {
   return option.type === "select" ? option.values.length > 0 : true;
 }
 
-async function mapProductDoc(doc: QueryDocumentSnapshot) {
+async function mapProductDoc(doc: QueryDocumentSnapshot, taxonomyCatalog: ProductTaxonomyCatalog) {
   const productParse = productDocumentSchema.safeParse(doc.data());
   if (!productParse.success) {
     console.warn("[catalog] product skipped: invalid product document", {
@@ -255,6 +256,7 @@ async function mapProductDoc(doc: QueryDocumentSnapshot) {
   }
 
   const productDoc = productParse.data;
+  const taxonomyFields = await resolveProductTaxonomyFields(productDoc, taxonomyCatalog);
   if (!isProductVisibleInShop(productDoc.status)) {
     console.info("[catalog] product excluded from storefront", {
       productId: doc.id,
@@ -274,10 +276,10 @@ async function mapProductDoc(doc: QueryDocumentSnapshot) {
     title: productDoc.title,
     slug: productDoc.slug,
     shortDescription: productDoc.shortDescription,
-    category: productDoc.category,
-    shopCategory: productDoc.shopCategory,
-    collection: productDoc.collection,
-    collectionSlug: productDoc.collectionSlug,
+    category: taxonomyFields.category,
+    shopCategory: taxonomyFields.shopCategory,
+    collection: taxonomyFields.collection,
+    collectionSlug: taxonomyFields.collectionSlug,
     status: productDoc.status,
     defaultVariantId: productDoc.defaultVariantId,
     variants,
@@ -296,7 +298,10 @@ async function mapProductDoc(doc: QueryDocumentSnapshot) {
   return {
     product: buildStorefrontProduct({
       id: doc.id,
-      productDoc,
+      productDoc: {
+        ...productDoc,
+        ...taxonomyFields
+      },
       variants,
       images,
       source: "firebase"
@@ -304,7 +309,10 @@ async function mapProductDoc(doc: QueryDocumentSnapshot) {
     detail: {
       ...buildStorefrontProduct({
         id: doc.id,
-        productDoc,
+        productDoc: {
+          ...productDoc,
+          ...taxonomyFields
+        },
         variants,
         images,
         source: "firebase"
@@ -318,11 +326,12 @@ async function mapProductDoc(doc: QueryDocumentSnapshot) {
 
 async function readFirebaseCatalog() {
   const snapshot = await getAdminDb().collection("products").where("status", "==", "active").get();
+  const taxonomyCatalog = await getProductTaxonomyCatalog();
   const entries = (
     await Promise.all(
       snapshot.docs.map(async (doc) => {
         try {
-          return await mapProductDoc(doc);
+          return await mapProductDoc(doc, taxonomyCatalog);
         } catch (error) {
           console.warn("[catalog] product skipped after unexpected storefront mapping error", {
             productId: doc.id,

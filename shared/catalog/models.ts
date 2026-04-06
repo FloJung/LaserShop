@@ -6,6 +6,7 @@ import type {
   PRODUCT_IMAGE_SYNC_STATUSES,
   PRODUCT_OPTION_TYPES,
   PRODUCT_SHOPIFY_SYNC_STATUSES,
+  PRODUCT_TAXONOMY_KINDS,
   PRODUCT_STATUSES,
   PRODUCTION_STATUSES,
   STOCK_MODES,
@@ -20,6 +21,7 @@ export type OptionPricingMode = (typeof OPTION_PRICING_MODES)[number];
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type ProductImageSyncStatus = (typeof PRODUCT_IMAGE_SYNC_STATUSES)[number];
 export type ProductShopifySyncStatus = (typeof PRODUCT_SHOPIFY_SYNC_STATUSES)[number];
+export type ProductTaxonomyKind = (typeof PRODUCT_TAXONOMY_KINDS)[number];
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type ProductionStatus = (typeof PRODUCTION_STATUSES)[number];
 export type UploadReviewStatus = (typeof UPLOAD_REVIEW_STATUSES)[number];
@@ -35,12 +37,18 @@ export type ProductDocument = {
   shortDescription: string;
   longDescription: string;
   category: string;
+  categoryId?: string;
   shopCategory: string;
+  shopCategoryId?: string;
   glassType: string;
+  glassTypeId?: string;
   collection: string;
+  collectionId?: string;
   collectionSlug: string;
   designer: string;
+  designerId?: string;
   occasion: string;
+  occasionId?: string;
   badge?: string;
   featured: boolean;
   care: string;
@@ -54,6 +62,15 @@ export type ProductDocument = {
   shopifyLastAttemptedAt?: TimestampLike;
   isPersonalizable: boolean;
   defaultVariantId?: string;
+  createdAt: TimestampLike;
+  updatedAt: TimestampLike;
+};
+
+export type ProductTaxonomyDocument = {
+  name: string;
+  slug: string;
+  description?: string;
+  sortOrder: number;
   createdAt: TimestampLike;
   updatedAt: TimestampLike;
 };

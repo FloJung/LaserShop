@@ -2,14 +2,13 @@ import { notFound } from "next/navigation";
 import { CategoryPromoBanner } from "@/components/category-promo-banner";
 import { ProductCard } from "@/components/product-card";
 import { SectionHeading } from "@/components/section-heading";
-import { glassTypes, shopCategories } from "@/lib/data/products";
-import { getProductsByGlassType, getProductsByShopCategory, getShopCategory } from "@/lib/shop";
-import type { ShopCategorySlug } from "@/lib/types";
+import { getProductsByGlassType, getProductsByShopCategory, getShopCategory, getFilterOptions } from "@/lib/shop";
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const filterOptions = await getFilterOptions();
   return [
-    ...shopCategories.map((category) => ({ glassType: category.slug })),
-    ...glassTypes.map((glassType) => ({ glassType }))
+    ...filterOptions.shopCategories.map((category) => ({ glassType: category.slug })),
+    ...filterOptions.glassTypes.map((glassType) => ({ glassType: glassType.name }))
   ];
 }
 
@@ -19,7 +18,7 @@ export default async function CategoryPage({
   params: Promise<{ glassType: string }>;
 }) {
   const slug = decodeURIComponent((await params).glassType);
-  const shopCategory = getShopCategory(slug as ShopCategorySlug);
+  const [shopCategory, filterOptions] = await Promise.all([getShopCategory(slug), getFilterOptions()]);
 
   if (shopCategory) {
     const products = await getProductsByShopCategory(shopCategory.slug);
@@ -52,7 +51,7 @@ export default async function CategoryPage({
     );
   }
 
-  if (!glassTypes.includes(slug as (typeof glassTypes)[number])) {
+  if (!filterOptions.glassTypes.some((glassType) => glassType.name === slug)) {
     notFound();
   }
 

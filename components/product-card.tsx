@@ -20,8 +20,20 @@ const collectionMarkers = {
   }
 } as const;
 
+function getCollectionMarker(collectionSlug: string) {
+  const knownMarker = collectionMarkers[collectionSlug as keyof typeof collectionMarkers];
+  if (knownMarker) {
+    return knownMarker;
+  }
+
+  return {
+    label: collectionSlug.trim().slice(0, 1).toUpperCase() || "D",
+    color: "bg-slate-600"
+  };
+}
+
 export function ProductCard({ product }: { product: Product }) {
-  const marker = collectionMarkers[product.collectionSlug];
+  const marker = getCollectionMarker(product.collectionSlug);
 
   return (
     <article className="group shine overflow-hidden rounded-3xl border border-[var(--line)] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">

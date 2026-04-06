@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AdminProductEditor } from "@/components/admin-product-editor";
 import { getAdminEditableProduct } from "@/lib/server/admin-products";
 import { requireAdminSession } from "@/lib/server/admin-session";
+import { getProductTaxonomyCatalog } from "@/lib/server/product-taxonomies";
 
 export default async function AdminProductDetailPage({
   params
@@ -10,11 +11,14 @@ export default async function AdminProductDetailPage({
 }) {
   await requireAdminSession();
   const { productId } = await params;
-  const product = await getAdminEditableProduct(productId);
+  const [product, taxonomies] = await Promise.all([
+    getAdminEditableProduct(productId),
+    getProductTaxonomyCatalog()
+  ]);
 
   if (!product) {
     notFound();
   }
 
-  return <AdminProductEditor product={product} />;
+  return <AdminProductEditor product={product} taxonomies={taxonomies} />;
 }

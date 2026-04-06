@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { DesignerCollection } from "@/lib/types";
+import type { DesignerCollection, TaxonomyOption } from "@/lib/types";
 
 export function FilterBar({
   glassType,
@@ -17,8 +17,8 @@ export function FilterBar({
   occasion?: string;
   search?: string;
   collections: DesignerCollection[];
-  glassTypes: readonly string[];
-  occasions: readonly string[];
+  glassTypes: readonly TaxonomyOption[];
+  occasions: readonly TaxonomyOption[];
   showCollection?: boolean;
   resetHref?: string;
 }) {
@@ -34,8 +34,8 @@ export function FilterBar({
       <select name="glassType" defaultValue={glassType ?? ""} className={baseInput}>
         <option value="">Alle Produktarten</option>
         {glassTypes.map((type) => (
-          <option key={type} value={type}>
-            {type}
+          <option key={type.slug} value={type.name}>
+            {type.name}
           </option>
         ))}
       </select>
@@ -53,10 +53,10 @@ export function FilterBar({
 
       <div className="flex gap-2">
         <select name="occasion" defaultValue={occasion ?? ""} className={`${baseInput} flex-1`}>
-          <option value="">Alle Anlässe</option>
+          <option value="">Alle Anlaesse</option>
           {occasions.map((item) => (
-            <option key={item} value={item}>
-              {item}
+            <option key={item.slug} value={item.name}>
+              {item.name}
             </option>
           ))}
         </select>
@@ -68,10 +68,9 @@ export function FilterBar({
 
       <div className={resetSpanClass}>
         <Link href={resetHref} className="text-sm font-medium text-[var(--brand)]">
-          Filter zurücksetzen
+          Filter zuruecksetzen
         </Link>
       </div>
     </form>
   );
 }
-
