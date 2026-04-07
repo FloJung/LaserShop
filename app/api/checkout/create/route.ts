@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { createCheckoutSession } from "@/lib/server/shopify";
+import { CheckoutSecurityError } from "@/shared/catalog";
 
 type CreateCheckoutRequest = {
   lineId?: string;
@@ -7,13 +9,8 @@ type CreateCheckoutRequest = {
   productId?: string;
   variantId?: string;
   quantity?: number;
-  name?: string;
-  price?: number;
-  image?: string;
   previewImage?: string;
-  subtitle?: string;
   configurations?: unknown;
-  designJson?: unknown;
 };
 
 function normalizeQuantity(value: unknown) {
@@ -37,23 +34,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const checkoutUrl = await createCheckoutSession(productId, variantId, quantity, {
-      lineId: typeof body.lineId === "string" ? body.lineId.trim() : undefined,
+    const checkoutUrl = await createCheckoutSession({
+      lineId: typeof body.lineId === "string" ? body.lineId.trim() : `buy-now-${productId}`,
       lineType: body.lineType === "custom-design" ? ("custom-design" as const) : ("product" as const),
-      name: typeof body.name === "string" ? body.name : undefined,
-      price: typeof body.price === "number" && Number.isFinite(body.price) ? body.price : undefined,
-      image: typeof body.image === "string" ? body.image : undefined,
+      productId,
+      variantId,
+      quantity,
       previewImage: typeof body.previewImage === "string" ? body.previewImage : undefined,
-      subtitle: typeof body.subtitle === "string" ? body.subtitle : undefined,
-      configurations: body.configurations,
-      designJson: body.designJson
+      configurations: body.configurations
     });
     return NextResponse.json({ checkoutUrl });
   } catch (error) {
     console.error("[shopify] checkout creation failed:", error);
+    const status = error instanceof CheckoutSecurityError || error instanceof ZodError ? 400 : 500;
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Checkout creation failed." },
-      { status: 500 }
+      { status }
     );
   }
 }

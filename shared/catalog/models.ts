@@ -203,6 +203,8 @@ export type ValidatedCartLine = {
   quantity: number;
   sku: string;
   productTitle: string;
+  productCollection?: string;
+  productGlassType?: string;
   variantName: string;
   unitPriceCents: number;
   lineSubtotalCents: number;

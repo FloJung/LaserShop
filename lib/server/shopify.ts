@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { getAdminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
+import { getAdminBucket, getAdminDb, isFirebaseAdminConfigured } from "@/lib/firebase/admin";
 import { normalizeLegacyProductImage } from "@/lib/server/product-image-normalization";
 import { updateCashflow } from "@/lib/server/cashflow";
 import { getStoredShopifyAccessToken } from "@/lib/server/shopify-auth";
@@ -11,13 +11,15 @@ import type {
   CustomerAddress,
   OrderDocument,
   OrderItemConfigurationDocument,
-  OrderItemDocument
+  OrderItemDocument,
+  ValidatedShopifyCheckoutPayload
 } from "@/shared/catalog";
 import {
   productDocumentSchema,
   productOptionDocumentSchema,
   productOptionValueDocumentSchema,
-  productVariantDocumentSchema
+  productVariantDocumentSchema,
+  validateShopifyCheckoutPayload
 } from "@/shared/catalog";
 
 const SHOPIFY_SHOP_DOMAIN = "laser-991863.myshopify.com";
@@ -221,13 +223,8 @@ type CheckoutContextLineInput = {
   productId: string;
   variantId: string;
   quantity: number;
-  name?: string;
-  price?: number;
-  image?: string;
   previewImage?: string;
-  subtitle?: string;
   configurations?: unknown;
-  designJson?: unknown;
 };
 
 type ResolvedCheckoutContextLine = {
@@ -246,7 +243,6 @@ type ResolvedCheckoutContextLine = {
   previewImageStorage: "missing" | "inline" | "omitted_too_large";
   configurations?: CartConfigurationInput[];
   customData?: Record<string, unknown>;
-  designJson?: Record<string, unknown>;
 };
 
 type ShopifyCheckoutContextDocument = {
@@ -282,7 +278,6 @@ type ShopifyCheckoutContextLineDocument = {
   previewImageStorage: "missing" | "inline" | "omitted_too_large";
   configurations?: CartConfigurationInput[];
   customData?: Record<string, unknown>;
-  designJson?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 };
@@ -1274,35 +1269,58 @@ async function resolveShopifyVariantId(localProductId: string, localVariantId: s
   return String(refreshedVariantId);
 }
 
-async function resolveShopifyCheckoutLine(line: CheckoutContextLineInput): Promise<ResolvedCheckoutContextLine> {
-  const mapping = await getShopifyProductMapping(line.productId);
-  if (!mapping?.shopifyProductId) {
-    throw new Error(`No Shopify product mapping found for local product ${line.productId}.`);
+function buildServerCheckoutSubtitle(line: ValidatedShopifyCheckoutPayload["lines"][number]["validated"]) {
+  if (!line.productCollection || !line.productGlassType) {
+    return undefined;
   }
 
-  const shopifyVariantId = await resolveShopifyVariantId(line.productId, line.variantId);
-  const normalizedDesignJson = normalizeDesignJson(line.designJson);
+  return `${line.productCollection} · ${line.productGlassType}`;
+}
+
+function buildValidatedCheckoutConfigurations(line: ValidatedShopifyCheckoutPayload["lines"][number]["validated"]) {
+  if (line.configurations.length === 0) {
+    return undefined;
+  }
+
+  return line.configurations.map((configuration) => ({
+    optionId: configuration.optionId,
+    value: configuration.value
+  }));
+}
+
+async function resolveValidatedShopifyCheckoutLine(
+  line: ValidatedShopifyCheckoutPayload["lines"][number]
+): Promise<ResolvedCheckoutContextLine> {
+  const mapping = await getShopifyProductMapping(line.validated.productId);
+  if (!mapping?.shopifyProductId) {
+    throw new Error(`No Shopify product mapping found for local product ${line.validated.productId}.`);
+  }
+
+  const shopifyVariantId = await resolveShopifyVariantId(line.validated.productId, line.validated.variantId);
   const { previewImage, previewImageStorage } = normalizePreviewImageForStorage(line.previewImage);
-  const normalizedConfigurations = normalizeCartConfigurations(line.configurations);
-  const summarizedDesignJson = summarizeDesignJson(normalizedDesignJson);
+  const normalizedConfigurations = buildValidatedCheckoutConfigurations(line.validated);
 
   return {
-    lineId: line.lineId?.trim() || `${line.productId}:${line.variantId}`,
+    lineId: line.lineId,
     lineType: line.lineType === "custom-design" ? "custom-design" : "product",
-    productId: line.productId,
-    variantId: line.variantId,
-    quantity: normalizeCheckoutQuantity(line.quantity),
+    productId: line.validated.productId,
+    variantId: line.validated.variantId,
+    quantity: line.validated.quantity,
     shopifyProductId: mapping.shopifyProductId,
     shopifyVariantId,
-    ...(line.name ? { name: line.name } : {}),
-    ...(typeof line.price === "number" && Number.isFinite(line.price) ? { price: line.price } : {}),
-    ...(line.image ? { image: line.image } : {}),
-    ...(line.subtitle ? { subtitle: line.subtitle } : {}),
+    name: line.validated.productTitle,
+    price: line.validated.lineTotalCents / line.validated.quantity / 100,
+    ...(buildServerCheckoutSubtitle(line.validated) ? { subtitle: buildServerCheckoutSubtitle(line.validated) } : {}),
     ...(previewImage ? { previewImage } : {}),
     previewImageStorage,
     ...(normalizedConfigurations ? { configurations: normalizedConfigurations } : {}),
-    ...(summarizedDesignJson ? { customData: summarizedDesignJson } : {}),
-    ...(normalizedDesignJson ? { designJson: normalizedDesignJson } : {})
+    ...(line.lineType === "custom-design"
+      ? {
+          customData: {
+            checkoutType: "custom-design"
+          }
+        }
+      : {})
   };
 }
 
@@ -1346,7 +1364,7 @@ async function createPendingCheckoutContext(input: {
     totalQuantity: input.lines.reduce((sum, line) => sum + line.quantity, 0),
     lineTypes: Array.from(new Set(input.lines.map((line) => line.lineType))),
     hasConfigurations: input.lines.some((line) => Boolean(line.configurations?.length)),
-    hasCustomDesigns: input.lines.some((line) => line.lineType === "custom-design" || Boolean(line.designJson)),
+    hasCustomDesigns: input.lines.some((line) => line.lineType === "custom-design"),
     shopifyLineSignature: buildShopifyLineSignature(input.lines),
     shopifyNote: buildCheckoutContextNote(contextId),
     createdAt: timestamp,
@@ -1373,7 +1391,6 @@ async function createPendingCheckoutContext(input: {
       previewImageStorage: line.previewImageStorage,
       ...(line.configurations?.length ? { configurations: line.configurations } : {}),
       ...(line.customData ? { customData: line.customData } : {}),
-      ...(line.designJson ? { designJson: line.designJson } : {}),
       createdAt: timestamp,
       updatedAt: timestamp
     };
@@ -1394,7 +1411,16 @@ async function createShopifyCheckoutWithContext(input: {
     throw new Error("Cannot create Shopify checkout for an empty cart.");
   }
 
-  const resolvedLines = await Promise.all(input.lines.map(resolveShopifyCheckoutLine));
+  const validatedPayload = await validateShopifyCheckoutPayload(
+    {
+      lines: input.lines
+    },
+    {
+      db: getAdminDb(),
+      bucket: getAdminBucket()
+    }
+  );
+  const resolvedLines = await Promise.all(validatedPayload.lines.map(resolveValidatedShopifyCheckoutLine));
   const { contextId } = await createPendingCheckoutContext({
     source: input.source,
     lines: resolvedLines
@@ -1410,29 +1436,11 @@ async function createShopifyCheckoutWithContext(input: {
 }
 
 export async function createCheckoutSession(
-  productId: string,
-  variantId: string,
-  quantity: number,
-  contextLine?: Partial<Omit<CheckoutContextLineInput, "productId" | "variantId" | "quantity">>
+  line: CheckoutContextLineInput
 ) {
   const result = await createShopifyCheckoutWithContext({
     source: "buy_now",
-    lines: [
-      {
-        productId,
-        variantId,
-        quantity,
-        ...(contextLine?.lineId ? { lineId: contextLine.lineId } : {}),
-        ...(contextLine?.lineType ? { lineType: contextLine.lineType } : {}),
-        ...(contextLine?.name ? { name: contextLine.name } : {}),
-        ...(typeof contextLine?.price === "number" ? { price: contextLine.price } : {}),
-        ...(contextLine?.image ? { image: contextLine.image } : {}),
-        ...(contextLine?.previewImage ? { previewImage: contextLine.previewImage } : {}),
-        ...(contextLine?.subtitle ? { subtitle: contextLine.subtitle } : {}),
-        ...(typeof contextLine?.configurations !== "undefined" ? { configurations: contextLine.configurations } : {}),
-        ...(typeof contextLine?.designJson !== "undefined" ? { designJson: contextLine.designJson } : {})
-      }
-    ]
+    lines: [line]
   });
 
   return result.checkoutUrl;
@@ -1930,7 +1938,7 @@ async function mirrorShopifyOrderToCanonicalOrders(input: {
           quantity: line.quantity,
           lineSubtotalCents,
           lineTotalCents,
-          isPersonalized: Boolean(configurations.length > 0 || line.customData),
+          isPersonalized: Boolean(configurations.length > 0 || line.customData || line.lineType === "custom-design"),
           ...(sanitizeMirroredPreviewUrl(line.previewImage) ? { designPreviewUrl: sanitizeMirroredPreviewUrl(line.previewImage) } : {}),
           ...(line.customData ? { customData: line.customData } : {}),
           createdAt: normalizeString(input.orderData.created_at) ?? nowIso()

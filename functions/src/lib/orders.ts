@@ -1,51 +1,23 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import type { DocumentReference } from "firebase-admin/firestore";
 import {
-  buildOrderTotals,
-  checkoutValidationRequestSchema,
   linkUploadRequestSchema,
   orderStatusUpdateRequestSchema,
-  productDocumentSchema,
-  productOptionDocumentSchema,
-  productOptionValueDocumentSchema,
-  productVariantDocumentSchema,
-  SHOP_PRICING_CONFIG,
-  textOptionSchema,
-  textareaOptionSchema,
   uploadDocumentSchema,
-  uploadReservationRequestSchema
+  uploadReservationRequestSchema,
+  validateCheckoutPayload,
+  verifyReservedUploadIntegrity
 } from "../../../shared/catalog";
 import type {
-  CartConfigurationInput,
-  CartConfigurationInputValue,
   OrderDocument,
   OrderItemConfigurationDocument,
   OrderItemDocument,
   UploadDocument,
-  ValidatedCartConfiguration,
   ValidatedCartLine,
   ValidatedCheckout
 } from "../../../shared/catalog";
 import { getBucket, getDb } from "./firebase";
-import {
-  createLinkedUploadPath,
-  createPendingUploadPath,
-  createUploadId,
-  nowIso,
-  plusDaysIso
-} from "./utils";
-
-type ProductContext = {
-  productId: string;
-  productDoc: ReturnType<typeof productDocumentSchema.parse>;
-  variantId: string;
-  variantDoc: ReturnType<typeof productVariantDocumentSchema.parse>;
-  options: Array<{
-    id: string;
-    doc: ReturnType<typeof productOptionDocumentSchema.parse>;
-    values: Array<{ id: string; doc: ReturnType<typeof productOptionValueDocumentSchema.parse> }>;
-  }>;
-};
+import { createLinkedUploadPath, createPendingUploadPath, createUploadId, nowIso, plusDaysIso } from "./utils";
 
 function summarizeOrderCustomData(customData?: Record<string, unknown>) {
   if (!customData) {
@@ -81,326 +53,6 @@ function sanitizeOrderPreviewUrl(previewUrl?: string) {
   return previewUrl;
 }
 
-function throwBadRequest(message: string): never {
-  throw new HttpsError("invalid-argument", message);
-}
-
-async function getProductContext(productId: string, variantId: string, cache: Map<string, Promise<ProductContext>>) {
-  const cacheKey = `${productId}:${variantId}`;
-  if (!cache.has(cacheKey)) {
-    cache.set(
-      cacheKey,
-      (async () => {
-        const productRef = getDb().collection("products").doc(productId);
-        const [productSnap, variantSnap, optionSnap] = await Promise.all([
-          productRef.get(),
-          productRef.collection("variants").doc(variantId).get(),
-          productRef.collection("options").get()
-        ]);
-
-        if (!productSnap.exists) {
-          throwBadRequest(`Unknown product: ${productId}`);
-        }
-
-        if (!variantSnap.exists) {
-          throwBadRequest(`Unknown variant for product ${productId}: ${variantId}`);
-        }
-
-        const productDoc = productDocumentSchema.parse(productSnap.data());
-        const variantDoc = productVariantDocumentSchema.parse(variantSnap.data());
-
-        if (productDoc.status !== "active") {
-          throw new HttpsError("failed-precondition", `Product ${productId} is not active.`);
-        }
-
-        if (!variantDoc.isActive) {
-          throw new HttpsError("failed-precondition", `Variant ${variantId} is not active.`);
-        }
-
-        if (variantDoc.stockMode === "tracked" && typeof variantDoc.stockQuantity === "number" && variantDoc.stockQuantity <= 0) {
-          throw new HttpsError("failed-precondition", `Variant ${variantId} is out of stock.`);
-        }
-
-        const options = await Promise.all(
-          optionSnap.docs.map(async (optionDocSnap) => {
-            const doc = productOptionDocumentSchema.parse(optionDocSnap.data());
-            const valuesSnap = await optionDocSnap.ref.collection("values").get();
-            return {
-              id: optionDocSnap.id,
-              doc,
-              values: valuesSnap.docs.map((valueDocSnap) => ({
-                id: valueDocSnap.id,
-                doc: productOptionValueDocumentSchema.parse(valueDocSnap.data())
-              }))
-            };
-          })
-        );
-
-        return {
-          productId,
-          productDoc,
-          variantId,
-          variantDoc,
-          options: options.filter((option) => option.doc.isActive).sort((left, right) => left.doc.sortOrder - right.doc.sortOrder)
-        };
-      })()
-    );
-  }
-
-  return cache.get(cacheKey)!;
-}
-
-function ensureStringValue(value: CartConfigurationInputValue, optionName: string) {
-  if (typeof value !== "string") {
-    throwBadRequest(`Option ${optionName} requires a string value.`);
-  }
-
-  return value;
-}
-
-function ensureBooleanValue(value: CartConfigurationInputValue, optionName: string) {
-  if (typeof value !== "boolean") {
-    throwBadRequest(`Option ${optionName} requires a boolean value.`);
-  }
-
-  return value;
-}
-
-function ensureUploadValue(value: CartConfigurationInputValue, optionName: string) {
-  if (!value || typeof value !== "object" || !("uploadId" in value)) {
-    throwBadRequest(`Option ${optionName} requires an upload reference.`);
-  }
-
-  return value;
-}
-
-async function getUploadDocument(uploadId: string, uploadCache: Map<string, Promise<UploadDocument>>) {
-  if (!uploadCache.has(uploadId)) {
-    uploadCache.set(
-      uploadId,
-      (async () => {
-        const uploadSnap = await getDb().collection("uploads").doc(uploadId).get();
-        if (!uploadSnap.exists) {
-          throwBadRequest(`Unknown upload reference: ${uploadId}`);
-        }
-
-        return uploadDocumentSchema.parse(uploadSnap.data());
-      })()
-    );
-  }
-
-  return uploadCache.get(uploadId)!;
-}
-
-function getTextModifier(baseModifierCents: number, pricingMode: "none" | "fixed" | "per_character", value: string) {
-  if (pricingMode === "per_character") {
-    return baseModifierCents * value.length;
-  }
-
-  if (pricingMode === "fixed") {
-    return baseModifierCents;
-  }
-
-  return 0;
-}
-
-async function validateConfiguration(
-  context: ProductContext,
-  config: CartConfigurationInput,
-  uploadCache: Map<string, Promise<UploadDocument>>
-) {
-  const option = context.options.find((entry) => entry.id === config.optionId);
-  if (!option) {
-    throwBadRequest(`Unknown option ${config.optionId} for product ${context.productId}.`);
-  }
-
-  const baseModifier = option.doc.priceModifierCents ?? 0;
-  const pricingMode = option.doc.pricingMode;
-
-  if (option.doc.type === "text") {
-    const value = textOptionSchema.max(option.doc.maxLength ?? 120).parse(ensureStringValue(config.value, option.doc.name));
-    return {
-      optionId: option.id,
-      optionCode: option.doc.code,
-      optionName: option.doc.name,
-      optionType: option.doc.type,
-      value,
-      renderedValue: value,
-      priceModifierCents: getTextModifier(baseModifier, pricingMode, value)
-    } satisfies ValidatedCartConfiguration;
-  }
-
-  if (option.doc.type === "textarea") {
-    const value = textareaOptionSchema.max(option.doc.maxLength ?? 2000).parse(ensureStringValue(config.value, option.doc.name));
-    return {
-      optionId: option.id,
-      optionCode: option.doc.code,
-      optionName: option.doc.name,
-      optionType: option.doc.type,
-      value,
-      renderedValue: value,
-      priceModifierCents: getTextModifier(baseModifier, pricingMode, value)
-    } satisfies ValidatedCartConfiguration;
-  }
-
-  if (option.doc.type === "checkbox") {
-    const value = ensureBooleanValue(config.value, option.doc.name);
-    return {
-      optionId: option.id,
-      optionCode: option.doc.code,
-      optionName: option.doc.name,
-      optionType: option.doc.type,
-      value,
-      renderedValue: value ? "Ja" : "Nein",
-      priceModifierCents: value && pricingMode === "fixed" ? baseModifier : 0
-    } satisfies ValidatedCartConfiguration;
-  }
-
-  if (option.doc.type === "select") {
-    const value = ensureStringValue(config.value, option.doc.name);
-    const selectedValue = option.values.find((entry) => entry.doc.isActive && entry.doc.value === value);
-    if (!selectedValue) {
-      throwBadRequest(`Invalid value for option ${option.doc.name}.`);
-    }
-
-    return {
-      optionId: option.id,
-      optionCode: option.doc.code,
-      optionName: option.doc.name,
-      optionType: option.doc.type,
-      value,
-      renderedValue: selectedValue.doc.label,
-      priceModifierCents: (pricingMode === "fixed" ? baseModifier : 0) + (selectedValue.doc.priceModifierCents ?? 0)
-    } satisfies ValidatedCartConfiguration;
-  }
-
-  const uploadValue = ensureUploadValue(config.value, option.doc.name);
-  const uploadDoc = await getUploadDocument(uploadValue.uploadId, uploadCache);
-  if (uploadDoc.linkedOrderId) {
-    throw new HttpsError("failed-precondition", `Upload ${uploadValue.uploadId} is already linked to an order.`);
-  }
-
-  if (option.doc.acceptedMimeTypes?.length && !option.doc.acceptedMimeTypes.includes(uploadDoc.mimeType)) {
-    throw new HttpsError("failed-precondition", `Upload ${uploadValue.uploadId} has an invalid file type.`);
-  }
-
-  return {
-    optionId: option.id,
-    optionCode: option.doc.code,
-    optionName: option.doc.name,
-    optionType: option.doc.type,
-    value: {
-      uploadId: uploadValue.uploadId,
-      originalFilename: uploadDoc.originalFilename
-    },
-    renderedValue: uploadDoc.originalFilename,
-    priceModifierCents: pricingMode === "fixed" ? baseModifier : 0,
-    uploadId: uploadValue.uploadId
-  } satisfies ValidatedCartConfiguration;
-}
-
-function enforceRequiredOptions(context: ProductContext, seenOptionIds: Set<string>) {
-  const missing = context.options
-    .filter((option) => option.doc.isRequired)
-    .filter((option) => !seenOptionIds.has(option.id))
-    .map((option) => option.doc.name);
-
-  if (missing.length > 0) {
-    throwBadRequest(`Missing required options for product ${context.productId}: ${missing.join(", ")}`);
-  }
-}
-
-export async function validateCheckoutPayload(input: unknown) {
-  const request = checkoutValidationRequestSchema.parse(input);
-  if (request.currency !== SHOP_PRICING_CONFIG.currency) {
-    throwBadRequest(`Unsupported currency ${request.currency}.`);
-  }
-
-  const productCache = new Map<string, Promise<ProductContext>>();
-  const uploadCache = new Map<string, Promise<UploadDocument>>();
-  const lines: ValidatedCartLine[] = [];
-
-  for (const line of request.lines) {
-    const context = await getProductContext(line.productId, line.variantId, productCache);
-    const configMap = new Map((line.configurations ?? []).map((config) => [config.optionId, config]));
-
-    if (configMap.size !== (line.configurations ?? []).length) {
-      throwBadRequest(`Duplicate configuration option detected in line ${line.lineId}.`);
-    }
-
-    const configurations: ValidatedCartConfiguration[] = [];
-    const seenOptionIds = new Set<string>();
-
-    for (const option of context.options) {
-      const providedConfig = configMap.get(option.id);
-      if (!providedConfig) {
-        continue;
-      }
-
-      seenOptionIds.add(option.id);
-      configurations.push(await validateConfiguration(context, providedConfig, uploadCache));
-    }
-
-    if (seenOptionIds.size !== configMap.size) {
-      const unknownOptionIds = [...configMap.keys()].filter((optionId) => !seenOptionIds.has(optionId));
-      throwBadRequest(`Unknown options on line ${line.lineId}: ${unknownOptionIds.join(", ")}`);
-    }
-
-    enforceRequiredOptions(context, seenOptionIds);
-
-    if (
-      context.variantDoc.stockMode === "tracked" &&
-      typeof context.variantDoc.stockQuantity === "number" &&
-      line.quantity > context.variantDoc.stockQuantity
-    ) {
-      throw new HttpsError(
-        "failed-precondition",
-        `Requested quantity ${line.quantity} exceeds stock for variant ${context.variantId}.`
-      );
-    }
-
-    const unitPriceCents = context.variantDoc.priceCents;
-    const lineSubtotalCents = unitPriceCents * line.quantity;
-    const configurationTotalPerUnit = configurations.reduce((sum, configuration) => sum + configuration.priceModifierCents, 0);
-    const lineTotalCents = (unitPriceCents + configurationTotalPerUnit) * line.quantity;
-
-    lines.push({
-      lineId: line.lineId,
-      productId: line.productId,
-      variantId: line.variantId,
-      quantity: line.quantity,
-      sku: context.variantDoc.sku,
-      productTitle: context.productDoc.title,
-      variantName: context.variantDoc.name,
-      unitPriceCents,
-      lineSubtotalCents,
-      lineTotalCents,
-      isPersonalized: configurations.length > 0 || Boolean(line.customData),
-      productionTimeDays: context.variantDoc.productionTimeDays,
-      configurations,
-      designPreviewUrl: line.designPreviewUrl,
-      customData: line.customData
-    });
-  }
-
-  const subtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  const totals = buildOrderTotals({
-    subtotalCents
-  });
-
-  return {
-    source: request.source,
-    currency: request.currency,
-    customer: request.customer,
-    shippingAddress: request.shippingAddress,
-    billingAddress: request.billingAddress,
-    notesCustomer: request.notesCustomer,
-    lines,
-    totals,
-    maxProductionTimeDays: Math.max(...lines.map((line) => line.productionTimeDays), 0)
-  } satisfies ValidatedCheckout;
-}
-
 async function reserveNextOrderNumber() {
   const counterRef = getDb().collection("meta").doc("orderCounter");
   return getDb().runTransaction(async (transaction) => {
@@ -419,13 +71,6 @@ async function reserveNextOrderNumber() {
   });
 }
 
-async function ensureUploadFileExists(storagePath: string) {
-  const [exists] = await getBucket().file(storagePath).exists();
-  if (!exists) {
-    throw new HttpsError("failed-precondition", `Upload file ${storagePath} does not exist in storage.`);
-  }
-}
-
 export async function linkUploadToOrderItem(input: {
   uploadId: string;
   orderId: string;
@@ -436,11 +81,14 @@ export async function linkUploadToOrderItem(input: {
   const uploadRef = getDb().collection("uploads").doc(request.uploadId);
   const uploadSnap = await uploadRef.get();
   if (!uploadSnap.exists) {
-    throwBadRequest(`Unknown upload ${request.uploadId}.`);
+    throw new HttpsError("invalid-argument", `Unknown upload ${request.uploadId}.`);
   }
 
   const uploadDoc = uploadDocumentSchema.parse(uploadSnap.data());
-  await ensureUploadFileExists(uploadDoc.storagePath);
+  await verifyReservedUploadIntegrity(uploadDoc, {
+    db: getDb(),
+    bucket: getBucket()
+  });
 
   const destinationPath = createLinkedUploadPath(
     request.orderId,

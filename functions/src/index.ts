@@ -1,11 +1,11 @@
 import { logger } from "firebase-functions";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
-import { getAdminAuth, getDb } from "./lib/firebase";
+import { getAdminAuth, getBucket, getDb } from "./lib/firebase";
+import { validateCheckoutPayload } from "../../shared/catalog";
 import {
   createOrderFromValidatedCheckout,
   createUploadReservationDocument,
-  parseOrderStatusUpdate,
-  validateCheckoutPayload
+  parseOrderStatusUpdate
 } from "./lib/orders";
 import {
   assertOrderTransition,
@@ -20,7 +20,10 @@ import {
 
 export const validateCart = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
-    const validatedCheckout = await validateCheckoutPayload(request.data);
+    const validatedCheckout = await validateCheckoutPayload(request.data, {
+      db: getDb(),
+      bucket: getBucket()
+    });
     return {
       currency: validatedCheckout.currency,
       totals: validatedCheckout.totals,
@@ -35,7 +38,10 @@ export const validateCart = onCall({ region: REGION }, async (request: CallableR
 
 export const createOrderFromCart = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
-    const validatedCheckout = await validateCheckoutPayload(request.data);
+    const validatedCheckout = await validateCheckoutPayload(request.data, {
+      db: getDb(),
+      bucket: getBucket()
+    });
     return await createOrderFromValidatedCheckout(validatedCheckout, request.auth?.uid);
   } catch (error) {
     logger.error("createOrderFromCart failed", error);

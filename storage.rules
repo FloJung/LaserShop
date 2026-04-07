@@ -1,6 +1,14 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function uploadDoc(uploadId) {
+      return firestore.get(/databases/(default)/documents/uploads/$(uploadId)).data;
+    }
+
+    function reservedPendingUploadPath(uploadId, fileName) {
+      return "customer-uploads/pending/" + uploadId + "/" + fileName;
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
@@ -18,13 +26,17 @@ service firebase.storage {
       allow read: if isAdmin();
       allow write: if
         request.resource != null &&
+        request.resource.size == uploadDoc(uploadId).fileSize &&
         request.resource.size < 10 * 1024 * 1024 &&
-        firestore.get(/databases/(default)/documents/uploads/$(uploadId)).data.reviewStatus == "pending_upload" &&
+        request.resource.contentType == uploadDoc(uploadId).mimeType &&
+        uploadDoc(uploadId).storagePath == reservedPendingUploadPath(uploadId, fileName) &&
+        uploadDoc(uploadId).reviewStatus == "pending_upload" &&
+        uploadDoc(uploadId).linkedOrderId == null &&
         (
-          firestore.get(/databases/(default)/documents/uploads/$(uploadId)).data.allowGuestUpload == true ||
+          uploadDoc(uploadId).allowGuestUpload == true ||
           (
             isSignedIn() &&
-            firestore.get(/databases/(default)/documents/uploads/$(uploadId)).data.ownerUid == request.auth.uid
+            uploadDoc(uploadId).ownerUid == request.auth.uid
           )
         );
     }

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { createCartCheckoutSession } from "@/lib/server/shopify";
+import { CheckoutSecurityError } from "@/shared/catalog";
 
 type CreateCartCheckoutRequest = {
   lines?: Array<{
@@ -8,13 +10,8 @@ type CreateCartCheckoutRequest = {
     productId?: string;
     variantId?: string;
     quantity?: number;
-    name?: string;
-    price?: number;
-    image?: string;
     previewImage?: string;
-    subtitle?: string;
     configurations?: unknown;
-    designJson?: unknown;
   }>;
 };
 
@@ -38,13 +35,8 @@ export async function POST(request: Request) {
           productId: typeof line.productId === "string" ? line.productId.trim() : "",
           variantId: typeof line.variantId === "string" ? line.variantId.trim() : "",
           quantity: normalizeQuantity(line.quantity),
-          name: typeof line.name === "string" ? line.name : undefined,
-          price: typeof line.price === "number" && Number.isFinite(line.price) ? line.price : undefined,
-          image: typeof line.image === "string" ? line.image : undefined,
           previewImage: typeof line.previewImage === "string" ? line.previewImage : undefined,
-          subtitle: typeof line.subtitle === "string" ? line.subtitle : undefined,
-          configurations: line.configurations,
-          designJson: line.designJson
+          configurations: line.configurations
         }))
         .filter((line) => line.productId && line.variantId && Number.isInteger(line.quantity) && line.quantity > 0)
     : [];
@@ -58,9 +50,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ checkoutUrl });
   } catch (error) {
     console.error("[shopify] cart checkout creation failed:", error);
+    const status = error instanceof CheckoutSecurityError || error instanceof ZodError ? 400 : 500;
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Cart checkout creation failed." },
-      { status: 500 }
+      { status }
     );
   }
 }

@@ -7,6 +7,7 @@ import {
   ALLOWED_PAYMENT_STATUS_TRANSITIONS,
   ALLOWED_PRODUCTION_STATUS_TRANSITIONS
 } from "../../../shared/catalog/constants";
+import { CheckoutSecurityError } from "../../../shared/catalog/security";
 import type {
   OrderStatus,
   PaymentStatus,
@@ -82,6 +83,10 @@ function formatZodError(error: ZodError) {
 export function toCallableError(error: unknown, fallbackMessage: string) {
   if (error instanceof HttpsError) {
     return error;
+  }
+
+  if (error instanceof CheckoutSecurityError) {
+    return new HttpsError(error.code, error.message);
   }
 
   if (error instanceof ZodError) {
