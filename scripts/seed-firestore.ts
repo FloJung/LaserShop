@@ -82,7 +82,7 @@ function buildOptions(productId: string, shopCategory: string) {
           pricingMode: "fixed",
           sortOrder: 20,
           isActive: true,
-          acceptedMimeTypes: ["image/png", "image/jpeg", "image/svg+xml", "application/pdf"],
+          acceptedMimeTypes: ["image/png", "image/jpeg", "application/pdf"],
           createdAt: timestamp,
           updatedAt: timestamp
         },
@@ -227,7 +227,7 @@ function buildOptions(productId: string, shopCategory: string) {
         pricingMode: "fixed",
         sortOrder: 40,
         isActive: true,
-        acceptedMimeTypes: ["image/png", "image/jpeg", "image/svg+xml", "application/pdf"],
+        acceptedMimeTypes: ["image/png", "image/jpeg", "application/pdf"],
         createdAt: timestamp,
         updatedAt: timestamp
       },

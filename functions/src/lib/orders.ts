@@ -1,6 +1,7 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import type { DocumentReference } from "firebase-admin/firestore";
 import {
+  assertSvgUploadIsAllowed,
   linkUploadRequestSchema,
   orderStatusUpdateRequestSchema,
   uploadDocumentSchema,
@@ -234,6 +235,7 @@ export function createUploadReservationDocument(input: {
   createdByRole: "guest" | "customer" | "admin";
 }) {
   const request = uploadReservationRequestSchema.parse(input);
+  assertSvgUploadIsAllowed(request.mimeType);
   const uploadId = createUploadId();
   const timestamp = nowIso();
   return {

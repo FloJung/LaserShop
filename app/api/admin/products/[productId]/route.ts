@@ -10,7 +10,7 @@ import {
   validateProductForPublishing
 } from "@/lib/server/product-publication";
 import { resolveProductTaxonomyFields } from "@/lib/server/product-taxonomies";
-import { editableProductPayloadSchema } from "@/shared/catalog";
+import { editableProductPayloadSchema, sanitizeAcceptedUploadMimeTypes } from "@/shared/catalog";
 import { isAdminRole } from "@/shared/firebase/roles";
 
 function nowIso() {
@@ -78,6 +78,7 @@ function normalizePayload(input: unknown) {
   const options = parsed.options.map((option, optionIndex) => ({
     ...option,
     code: option.code.trim() || slugify(option.name),
+    acceptedMimeTypes: sanitizeAcceptedUploadMimeTypes(option.acceptedMimeTypes),
     sortOrder: optionIndex,
     values:
       option.type === "select"

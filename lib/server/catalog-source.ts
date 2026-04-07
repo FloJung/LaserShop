@@ -13,7 +13,8 @@ import {
   productDocumentSchema,
   productOptionDocumentSchema,
   productOptionValueDocumentSchema,
-  productVariantDocumentSchema
+  productVariantDocumentSchema,
+  sanitizeAcceptedUploadMimeTypes
 } from "@/shared/catalog";
 import type { StorefrontOption } from "@/shared/catalog";
 
@@ -218,7 +219,7 @@ async function readOptions(productId: string) {
         priceModifierCents: option.priceModifierCents ?? 0,
         pricingMode: option.pricingMode,
         sortOrder: option.sortOrder,
-        acceptedMimeTypes: option.acceptedMimeTypes,
+        acceptedMimeTypes: sanitizeAcceptedUploadMimeTypes(option.acceptedMimeTypes),
         values
       };
 

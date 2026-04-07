@@ -72,7 +72,7 @@ export function ProductPurchasePanel({ product, options }: ProductPurchasePanelP
       return;
     }
 
-    if (option.acceptedMimeTypes?.length && !option.acceptedMimeTypes.includes(file.type)) {
+    if (Array.isArray(option.acceptedMimeTypes) && !option.acceptedMimeTypes.includes(file.type)) {
       setUploadStates((current) => ({
         ...current,
         [option.id]: {
@@ -263,7 +263,7 @@ export function ProductPurchasePanel({ product, options }: ProductPurchasePanelP
                         </span>
                         <input
                           type="file"
-                          accept={option.acceptedMimeTypes?.join(",")}
+                          accept={option.acceptedMimeTypes?.length ? option.acceptedMimeTypes.join(",") : undefined}
                           onChange={(event) => {
                             void handleFileSelect(option, event.target.files?.[0]);
                           }}

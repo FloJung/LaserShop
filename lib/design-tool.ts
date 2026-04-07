@@ -83,7 +83,7 @@ export const CANVAS_REAL_SIZE_MM = 100;
 export const SAFE_MARGIN = 26;
 export const DEFAULT_TEXT_COLOR = "#111111";
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-export const ACCEPTED_UPLOAD_TYPES = ["image/svg+xml", "image/png", "image/jpeg"] as const;
+export const ACCEPTED_UPLOAD_TYPES = ["image/png", "image/jpeg"] as const;
 export const DEFAULT_LINE_STROKE_WIDTH = 4;
 export const MIN_LINE_LENGTH = 12;
 export const MAX_LINE_LENGTH = 420;
@@ -984,7 +984,7 @@ function loadImageElement(source: string) {
 
 export async function convertUploadToEngravingPreview(file: File) {
   if (!ACCEPTED_UPLOAD_TYPES.includes(file.type as (typeof ACCEPTED_UPLOAD_TYPES)[number])) {
-    throw new Error("Bitte lade SVG, PNG oder JPG hoch.");
+    throw new Error("Bitte lade PNG oder JPG hoch.");
   }
 
   if (file.size > MAX_UPLOAD_BYTES) {

@@ -75,7 +75,7 @@ export function EditorToolbar({
         <ToolButton
           icon={<Upload size={17} />}
           label="Grafik hochladen"
-          description="SVG, PNG oder JPG für die Gravurvorschau einfuegen"
+          description="PNG oder JPG fuer die Gravurvorschau einfuegen"
           onClick={onUpload}
         />
         <ToolButton

@@ -24,6 +24,7 @@ import {
 } from "./schemas";
 
 const MAX_CHECKOUT_PREVIEW_IMAGE_LENGTH = 2_500_000;
+export const SVG_UPLOAD_ERROR_MESSAGE = "SVG uploads are not allowed for security reasons.";
 
 const shopifyCheckoutLineInputSchema = z.object({
   lineId: z.string().trim().min(1).max(120).optional(),
@@ -112,8 +113,25 @@ function normalizeMimeType(value: string | undefined) {
   return value?.split(";")[0].trim().toLowerCase();
 }
 
-function normalizeSvgSource(value: Buffer) {
-  return value.toString("utf8").replace(/^\uFEFF/, "").trimStart();
+export function isSvgMimeType(value: string | undefined) {
+  return normalizeMimeType(value) === "image/svg+xml";
+}
+
+export function assertSvgUploadIsAllowed(
+  mimeType: string | undefined,
+  code: CheckoutSecurityError["code"] = "invalid-argument"
+) {
+  if (isSvgMimeType(mimeType)) {
+    throw new CheckoutSecurityError(code, SVG_UPLOAD_ERROR_MESSAGE);
+  }
+}
+
+export function sanitizeAcceptedUploadMimeTypes(mimeTypes?: string[]) {
+  if (!mimeTypes) {
+    return undefined;
+  }
+
+  return mimeTypes.filter((mimeType) => !isSvgMimeType(mimeType));
 }
 
 async function sniffStoredMimeType(file: StorageFileLike, declaredMimeType: string) {
@@ -152,15 +170,13 @@ async function sniffStoredMimeType(file: StorageFileLike, declaredMimeType: stri
       : null;
   }
 
-  if (normalizedDeclaredMimeType === "image/svg+xml") {
-    const svgSource = normalizeSvgSource(buffer);
-    return /^<svg\b/i.test(svgSource) || /^<\?xml[\s\S]*?<svg\b/i.test(svgSource) ? "image/svg+xml" : null;
-  }
-
   return null;
 }
 
 async function assertUploadStorageConsistency(uploadDoc: UploadDocument, services: ValidationServices) {
+  // SVG stays blocked even for legacy reservations or reused upload references.
+  assertSvgUploadIsAllowed(uploadDoc.mimeType, "failed-precondition");
+
   const sourceFile = services.bucket.file(uploadDoc.storagePath);
   const [exists] = await sourceFile.exists();
   if (!exists) {
@@ -398,7 +414,8 @@ async function validateConfiguration(
     throwSecurityError("failed-precondition", `Upload ${uploadValue.uploadId} is already linked to an order.`);
   }
 
-  if (option.doc.acceptedMimeTypes?.length && !option.doc.acceptedMimeTypes.includes(uploadDoc.mimeType)) {
+  const acceptedMimeTypes = sanitizeAcceptedUploadMimeTypes(option.doc.acceptedMimeTypes);
+  if (acceptedMimeTypes && !acceptedMimeTypes.includes(uploadDoc.mimeType)) {
     throwSecurityError("failed-precondition", `Upload ${uploadValue.uploadId} has an invalid file type.`);
   }
 

@@ -79,7 +79,7 @@ export function EditorSidebar({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg"
+        accept=".png,.jpg,.jpeg,image/png,image/jpeg"
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];
