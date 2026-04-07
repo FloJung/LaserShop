@@ -5,6 +5,8 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import {
   SECURITY_ALERT_RULES,
+  getSecurityEventSampleRate,
+  getSecurityEventWeight,
   type SecurityAlertStatus,
   type SecurityAlertType,
   type SecurityEventInput,
@@ -57,13 +59,82 @@ export type AdminSecurityDashboardData = {
 
 const SECURITY_EVENT_COLLECTION = "securityEvents";
 const SECURITY_ALERT_COLLECTION = "securityAlerts";
+const BLOCKED_IP_COLLECTION = "blockedIps";
+const SECURITY_EVENT_SAMPLING_COLLECTION = "securityEventSampling";
+const BLOCKED_IP_DURATION_MS = 15 * 60_000;
+
+export class AccessDeniedError extends Error {
+  readonly status = 403;
+
+  constructor(message = "Access denied.") {
+    super(message);
+    this.name = "AccessDeniedError";
+  }
+}
+
+function getDailySalt(date = new Date()) {
+  return `${process.env.SECURITY_IP_HASH_SECRET ?? "laser-shop-security"}:${date.toISOString().slice(0, 10)}`;
+}
 
 export function hashIp(ip: string) {
-  return createHash("sha256").update(ip || "unknown").digest("hex");
+  return createHash("sha256").update(`${ip || "unknown"}:${getDailySalt()}`).digest("hex");
 }
 
 function getAlertDocumentId(type: SecurityAlertType, ipHash: string) {
   return `${type}_${ipHash}`;
+}
+
+async function shouldLogEvent(type: SecurityEventType) {
+  const sampleRate = getSecurityEventSampleRate(type);
+  if (sampleRate <= 1) {
+    return true;
+  }
+
+  const counterRef = getAdminDb().collection(SECURITY_EVENT_SAMPLING_COLLECTION).doc(type);
+  return getAdminDb().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(counterRef);
+    const currentCount = snapshot.exists ? Number(snapshot.data()?.count ?? 0) : 0;
+    const nextCount = currentCount + 1;
+
+    transaction.set(
+      counterRef,
+      {
+        count: nextCount,
+        updatedAt: Timestamp.now()
+      },
+      { merge: true }
+    );
+
+    return nextCount % sampleRate === 0;
+  });
+}
+
+async function blockIp(input: {
+  ipHash: string;
+  reason: string;
+  baseTimestamp?: Timestamp;
+}) {
+  const createdAt = input.baseTimestamp ?? Timestamp.now();
+  const expiresAt = Timestamp.fromMillis(createdAt.toMillis() + BLOCKED_IP_DURATION_MS);
+  await getAdminDb().collection(BLOCKED_IP_COLLECTION).doc(input.ipHash).set(
+    {
+      ipHash: input.ipHash,
+      reason: input.reason,
+      createdAt,
+      expiresAt
+    },
+    { merge: true }
+  );
+}
+
+export async function isIpBlocked(ipHash: string) {
+  const snapshot = await getAdminDb().collection(BLOCKED_IP_COLLECTION).doc(ipHash).get();
+  if (!snapshot.exists) {
+    return false;
+  }
+
+  const expiresAt = snapshot.data()?.expiresAt;
+  return expiresAt instanceof Timestamp && expiresAt.toMillis() > Date.now();
 }
 
 async function sendSecurityAlertNotification(alert: SecurityAlertDocument) {
@@ -107,7 +178,9 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
             rule.eventTypes.includes(candidate.type)
         );
 
-      if (matchingEvents.length <= rule.threshold) {
+      const weightedEventCount = matchingEvents.reduce((sum, candidate) => sum + getSecurityEventWeight(candidate.type), 0);
+
+      if (weightedEventCount <= rule.threshold) {
         return;
       }
 
@@ -119,13 +192,18 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
       const nextAlert: SecurityAlertDocument = {
         type: alertType,
         ipHash: event.ipHash,
-        eventCount: matchingEvents.length,
+        eventCount: weightedEventCount,
         firstSeenAt,
         lastSeenAt,
         status: "open"
       };
 
       await alertRef.set(nextAlert, { merge: true });
+      await blockIp({
+        ipHash: event.ipHash,
+        reason: `Auto-blocked due to ${alertType}.`,
+        baseTimestamp: event.createdAt
+      });
 
       if (!existingAlert || existingAlert.status !== "open") {
         await sendSecurityAlertNotification(nextAlert);
@@ -135,6 +213,10 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
 }
 
 export async function logSecurityEvent(event: SecurityEventInput): Promise<void> {
+  if (!(await shouldLogEvent(event.type))) {
+    return;
+  }
+
   const db = getAdminDb();
   const eventDoc: SecurityEventDocument = {
     type: event.type,
@@ -181,6 +263,13 @@ export async function logRequestSecurityEvents(
   );
 }
 
+export async function assertRequestIpNotBlocked(request: Request) {
+  const context = getRequestSecurityContext(request);
+  if (await isIpBlocked(hashIp(context.ip))) {
+    throw new AccessDeniedError();
+  }
+}
+
 function formatTimestamp(value: Timestamp) {
   return value.toDate().toISOString();
 }
@@ -214,8 +303,8 @@ export async function getAdminSecurityDashboardData(): Promise<AdminSecurityDash
       lastSeenAt: formatTimestamp(event.createdAt)
     };
 
-    current.eventCount += 1;
-    current.eventTypes.set(event.type, (current.eventTypes.get(event.type) ?? 0) + 1);
+    current.eventCount += getSecurityEventWeight(event.type);
+    current.eventTypes.set(event.type, (current.eventTypes.get(event.type) ?? 0) + getSecurityEventWeight(event.type));
     current.lastSeenAt = formatTimestamp(event.createdAt);
     attackerMap.set(event.ipHash, current);
   }

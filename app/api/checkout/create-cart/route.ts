@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { RateLimitExceededError, assertInMemoryRateLimit } from "@/lib/server/rate-limit";
-import { logRequestSecurityEvents } from "@/lib/server/security-monitoring";
+import { RateLimitExceededError } from "@/lib/server/rate-limit";
+import { createGlobalRateLimiter } from "@/lib/server/rate-limit-global";
+import { AccessDeniedError, assertRequestIpNotBlocked, logRequestSecurityEvents } from "@/lib/server/security-monitoring";
 import { createCartCheckoutSession } from "@/lib/server/shopify";
 import { CheckoutSecurityError } from "@/shared/catalog";
 import { getCheckoutSecurityEvents, getDefaultSecuritySeverity } from "@/shared/security-monitoring";
@@ -22,14 +23,23 @@ function normalizeQuantity(value: unknown) {
   return typeof value === "number" && Number.isInteger(value) ? value : Number(value);
 }
 
+const checkoutCartRateLimiter = createGlobalRateLimiter({
+  limit: 5,
+  window: "60 s",
+  fallbackWindowMs: 60_000
+});
+
 export async function POST(request: Request) {
   try {
-    assertInMemoryRateLimit(request, {
-      namespace: "checkout:create-cart",
-      limit: 5,
-      windowMs: 60_000
+    await assertRequestIpNotBlocked(request);
+    await checkoutCartRateLimiter.limit(request, {
+      endpoint: "checkout:create-cart"
     });
   } catch (error) {
+    if (error instanceof AccessDeniedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     if (error instanceof RateLimitExceededError) {
       await logRequestSecurityEvents(request, [
         {

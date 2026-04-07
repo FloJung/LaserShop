@@ -18,11 +18,18 @@ import {
   requireAdmin,
   toCallableError
 } from "./lib/utils";
-import { assertCallableRateLimit } from "./lib/rate-limit";
-import { logCallableSecurityEvents } from "./lib/security-monitoring";
+import { createGlobalCallableRateLimiter } from "./lib/rate-limit-global";
+import { assertCallableIpNotBlocked, logCallableSecurityEvents } from "./lib/security-monitoring";
+
+const uploadReservationRateLimiter = createGlobalCallableRateLimiter({
+  limit: 10,
+  window: "60 s",
+  fallbackWindowMs: 60_000
+});
 
 export const validateCart = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
+    await assertCallableIpNotBlocked(request, "functions.validateCart");
     const validatedCheckout = await validateCheckoutPayload(request.data, {
       db: getDb(),
       bucket: getBucket()
@@ -46,6 +53,7 @@ export const validateCart = onCall({ region: REGION }, async (request: CallableR
 
 export const createOrderFromCart = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
+    await assertCallableIpNotBlocked(request, "functions.createOrderFromCart");
     const validatedCheckout = await validateCheckoutPayload(request.data, {
       db: getDb(),
       bucket: getBucket()
@@ -64,10 +72,9 @@ export const createOrderFromCart = onCall({ region: REGION }, async (request: Ca
 
 export const createUploadReservation = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
-    await assertCallableRateLimit(request, {
-      namespace: "upload-reservation",
-      limit: 10,
-      windowMs: 60_000
+    await assertCallableIpNotBlocked(request, "functions.createUploadReservation");
+    await uploadReservationRateLimiter.limit(request, {
+      endpoint: "upload-reservation"
     });
 
     const role = getRequestUserRole(request);

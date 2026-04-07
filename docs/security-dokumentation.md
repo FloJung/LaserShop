@@ -79,11 +79,13 @@ Die wichtigsten sicherheitsrelevanten Dateien sind:
 - `shared/catalog/schemas.ts`
 - `shared/security-monitoring.ts`
 - `lib/server/shopify.ts`
+- `lib/server/rate-limit-global.ts`
 - `lib/server/security-monitoring.ts`
 - `app/api/checkout/create/route.ts`
 - `app/api/checkout/create-cart/route.ts`
 - `functions/src/index.ts`
 - `functions/src/lib/orders.ts`
+- `functions/src/lib/rate-limit-global.ts`
 - `functions/src/lib/security-monitoring.ts`
 - `lib/firebase/uploads.ts`
 - `storage.rules`
@@ -208,7 +210,9 @@ Bei Ueberschreitung wird geantwortet mit:
 - HTTP `429`
 - `Too many requests. Please try again later.`
 
-Wichtig: Das Next.js-Rate-Limit ist aktuell bewusst als In-Memory-Schutz umgesetzt. Das ist fuer den aktuellen Stand ein pragmatischer Basisschutz, aber kein voll verteilter Cluster-Schutz wie bei Redis.
+Im Produktionsmodus verwendet der Checkout jetzt ein globales Redis-basiertes Rate Limit ueber Upstash. Dadurch gilt das Limit instanzuebergreifend und nicht nur pro Node-Prozess.
+
+Falls die Upstash-Umgebung lokal oder in einer Testumgebung nicht konfiguriert ist, faellt der Server kontrolliert auf den bisherigen In-Memory-Schutz zurueck.
 
 ## 6. Upload-Sicherheit
 
@@ -292,7 +296,7 @@ Die Identitaet basiert auf:
 - IP-Adresse
 - zusaetzlich User-ID, falls vorhanden
 
-Im Gegensatz zu den Next.js-Routen wird dieses Limit ueber Firestore verwaltet, damit es auch bei parallelen Function-Instanzen konsistent bleibt.
+Im Produktionsmodus verwendet auch die Upload-Reservation ein globales Redis-basiertes Rate Limit ueber Upstash. Falls Upstash nicht konfiguriert ist, faellt die Function kontrolliert auf das bestehende Firestore-basierte Rate Limit zurueck.
 
 Bei Ueberschreitung wird geantwortet mit:
 
@@ -304,6 +308,7 @@ Ziel dieses Limits:
 - Vermeidung von Firestore- und Storage-Kostenangriffen
 - Reduktion von Massen-Reservationen
 - Schutz vor unnoetiger Serverlast
+- globale, instanzuebergreifende Durchsetzung des Limits
 
 ## 6.7 Atomare Upload-Verknuepfung
 
@@ -362,6 +367,7 @@ Wichtig:
 
 - IP-Adressen werden nicht im Klartext gespeichert
 - stattdessen wird serverseitig ein SHA-256-Hash abgelegt
+- der Hash verwendet eine rotierende taegliche Salt-Komponente
 
 ### Event-Typen
 
@@ -402,6 +408,46 @@ Die Engine verwendet aktuell folgende Regeln:
 
 Ein bestehender Alert wird dabei aktualisiert statt mehrfach neu erstellt.
 
+Wenn ein Alert ausgeloest wird, wird die betreffende gehashte IP automatisch temporaer blockiert.
+
+### Auto-Block-System
+
+Geblockte IP-Hashes werden in `blockedIps` gespeichert.
+
+Gespeichert werden:
+
+- `ipHash`
+- `reason`
+- `createdAt`
+- `expiresAt`
+
+Aktuelles Verhalten:
+
+- neue oder erneut ausgeloeste Alerts fuehren zu einem automatischen Block
+- Blockdauer betraegt 15 Minuten
+- kritische Entry-Points pruefen die Blocklist vor der Business-Logik
+- geblockte Requests erhalten `Access denied.`
+
+Aktuell abgesicherte Entry-Points:
+
+- `app/api/checkout/create/route.ts`
+- `app/api/checkout/create-cart/route.ts`
+- `functions.createUploadReservation`
+- Legacy-Checkout-Functions fuer Cart-Validierung und Order-Erzeugung
+
+### Event Sampling
+
+Nicht jeder Security-Event wird dauerhaft gespeichert. Dadurch wird das Monitoring selbst resistenter gegen Spam.
+
+Aktuelle Sampling-Regeln:
+
+- `rate_limit_hit`: nur jeder 5. Event wird gespeichert
+- `upload_rejected`: nur jeder 3. Event wird gespeichert
+- `checkout_security_error`: alle Events werden gespeichert
+- `svg_upload_attempt`: alle Events werden gespeichert
+
+Fuer die Incident Detection und die Admin-Auswertung werden die gespeicherten Events gewichtet, damit Sampling die Erkennung nicht vollstaendig entwertet.
+
 ### Admin-Dashboard
 
 Es gibt jetzt eine geschuetzte Admin-Seite:
@@ -421,6 +467,9 @@ Wenn ein neuer Alert entsteht oder ein geschlossener Alert wieder geoeffnet wird
 Dafuer wird die Environment-Variable verwendet:
 
 - `SECURITY_ALERT_DISCORD_WEBHOOK_URL`
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+- optional `SECURITY_IP_HASH_SECRET`
 
 ## 7. SVG-Schutz
 
@@ -504,7 +553,7 @@ Die eigentliche Rollenpruefung erfolgt serverseitig und in Firebase-Regeln, nich
 Trotz der aktuellen Haertungen bleiben ein paar grundsaetzliche Grenzen bestehen:
 
 - Diese Doku behandelt vor allem Business-, Upload- und Monitoring-Sicherheit, aber nicht vollstaendig Themen wie DDoS-Schutz auf Infrastruktur-Ebene oder Secret-Management.
-- Das Checkout-Rate-Limit in Next.js ist aktuell In-Memory-basiert und daher bewusst als Basisschutz zu verstehen.
+- Ohne Upstash-Umgebungsvariablen faellt das System fuer Rate Limiting kontrolliert auf lokale Fallbacks zurueck.
 - Produktbilder fuer den Admin folgen einem separaten Pfad und sind nicht Teil der reservierten Kunden-Upload-Logik.
 - Sicherheitsniveau haengt weiterhin davon ab, dass Firestore-, Storage- und Shopify-Konfiguration korrekt deployed sind.
 
@@ -523,8 +572,10 @@ Nach sicherheitsrelevanten Aenderungen sollte geprueft werden:
 9. Parallele Upload-Verwendungen schlagen sauber fehl.
 10. Security-Events werden in `securityEvents` geschrieben.
 11. Wiederholte Angriffsmuster erzeugen Eintraege in `securityAlerts`.
-12. `/admin/security` zeigt Alerts und Event-Feed korrekt an.
-13. Storage Rules und Functions sind im Zielsystem deployed.
+12. Auto-Blocks erzeugen Eintraege in `blockedIps`.
+13. Geblockte Requests erhalten `403` oder `permission-denied`.
+14. `/admin/security` zeigt Alerts und Event-Feed korrekt an.
+15. Storage Rules und Functions sind im Zielsystem deployed.
 
 ## 12. Empfohlene Weiterentwicklung
 
@@ -534,6 +585,7 @@ Sinnvolle naechste Sicherheitsmassnahmen fuer spaetere Iterationen waeren:
 - automatisierte Tests fuer Upload-MIME-Mismatch und SVG-Blockierung
 - automatisierte Tests fuer Rate Limiting und parallele Upload-Verknuepfung
 - automatisierte Tests fuer Alert-Erzeugung und Dashboard-Abfragen
+- Tests fuer Upstash-Fallbacks und Auto-Block-Expiry
 - Benachrichtigungen an weitere Systeme wie E-Mail, Slack oder SIEM
 - regelmaessige Review der Admin-Endpunkte und Webhook-Validierung
 
@@ -547,4 +599,4 @@ Der aktuelle Sicherheitsansatz des Projekts basiert auf einem klaren Muster:
 
 Gerade fuer Checkout und Uploads ist das entscheidend. Durch die gemeinsame Shared-Validation, die gehaerteten Storage Rules und das komplette SVG-Verbot ist die wichtigste verbleibende Angriffsoberflaeche in diesen Bereichen deutlich reduziert.
 
-Mit dem zusaetzlichen Security-Monitoring ist das System ausserdem nicht mehr blind gegen wiederholte Angriffe. Verdachtige Muster werden jetzt nicht nur geblockt, sondern auch als Events und Alerts sichtbar gemacht.
+Mit dem zusaetzlichen Security-Monitoring ist das System ausserdem nicht mehr blind gegen wiederholte Angriffe. Verdachtige Muster werden jetzt nicht nur geblockt, sondern auch als Events, Alerts und temporaere Auto-Blocks sichtbar und wirksam gemacht.

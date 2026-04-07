@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
 import { Timestamp } from "firebase-admin/firestore";
 import type { CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import { getDb } from "./firebase";
 import {
   SECURITY_ALERT_RULES,
+  getSecurityEventSampleRate,
+  getSecurityEventWeight,
   type SecurityAlertStatus,
   type SecurityAlertType,
   type SecurityEventInput,
@@ -32,13 +35,73 @@ type SecurityAlertDocument = {
 
 const SECURITY_EVENT_COLLECTION = "securityEvents";
 const SECURITY_ALERT_COLLECTION = "securityAlerts";
+const BLOCKED_IP_COLLECTION = "blockedIps";
+const SECURITY_EVENT_SAMPLING_COLLECTION = "securityEventSampling";
+const BLOCKED_IP_DURATION_MS = 15 * 60_000;
+
+function getDailySalt(date = new Date()) {
+  return `${process.env.SECURITY_IP_HASH_SECRET ?? "laser-shop-security"}:${date.toISOString().slice(0, 10)}`;
+}
 
 export function hashIp(ip: string) {
-  return createHash("sha256").update(ip || "unknown").digest("hex");
+  return createHash("sha256").update(`${ip || "unknown"}:${getDailySalt()}`).digest("hex");
 }
 
 function getAlertDocumentId(type: SecurityAlertType, ipHash: string) {
   return `${type}_${ipHash}`;
+}
+
+async function shouldLogEvent(type: SecurityEventType) {
+  const sampleRate = getSecurityEventSampleRate(type);
+  if (sampleRate <= 1) {
+    return true;
+  }
+
+  const counterRef = getDb().collection(SECURITY_EVENT_SAMPLING_COLLECTION).doc(type);
+  return getDb().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(counterRef);
+    const currentCount = snapshot.exists ? Number(snapshot.data()?.count ?? 0) : 0;
+    const nextCount = currentCount + 1;
+
+    transaction.set(
+      counterRef,
+      {
+        count: nextCount,
+        updatedAt: Timestamp.now()
+      },
+      { merge: true }
+    );
+
+    return nextCount % sampleRate === 0;
+  });
+}
+
+async function blockIp(input: {
+  ipHash: string;
+  reason: string;
+  baseTimestamp?: Timestamp;
+}) {
+  const createdAt = input.baseTimestamp ?? Timestamp.now();
+  const expiresAt = Timestamp.fromMillis(createdAt.toMillis() + BLOCKED_IP_DURATION_MS);
+  await getDb().collection(BLOCKED_IP_COLLECTION).doc(input.ipHash).set(
+    {
+      ipHash: input.ipHash,
+      reason: input.reason,
+      createdAt,
+      expiresAt
+    },
+    { merge: true }
+  );
+}
+
+export async function isIpBlocked(ipHash: string) {
+  const snapshot = await getDb().collection(BLOCKED_IP_COLLECTION).doc(ipHash).get();
+  if (!snapshot.exists) {
+    return false;
+  }
+
+  const expiresAt = snapshot.data()?.expiresAt;
+  return expiresAt instanceof Timestamp && expiresAt.toMillis() > Date.now();
 }
 
 function getCallableRequestContext(request: CallableRequest<unknown>, fallbackPath: string) {
@@ -108,7 +171,9 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
             rule.eventTypes.includes(candidate.type)
         );
 
-      if (matchingEvents.length <= rule.threshold) {
+      const weightedEventCount = matchingEvents.reduce((sum, candidate) => sum + getSecurityEventWeight(candidate.type), 0);
+
+      if (weightedEventCount <= rule.threshold) {
         return;
       }
 
@@ -120,13 +185,18 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
       const nextAlert: SecurityAlertDocument = {
         type: alertType,
         ipHash: event.ipHash,
-        eventCount: matchingEvents.length,
+        eventCount: weightedEventCount,
         firstSeenAt,
         lastSeenAt,
         status: "open"
       };
 
       await alertRef.set(nextAlert, { merge: true });
+      await blockIp({
+        ipHash: event.ipHash,
+        reason: `Auto-blocked due to ${alertType}.`,
+        baseTimestamp: event.createdAt
+      });
 
       if (!existingAlert || existingAlert.status !== "open") {
         await sendSecurityAlertNotification(nextAlert);
@@ -136,6 +206,10 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
 }
 
 export async function logSecurityEvent(event: SecurityEventInput): Promise<void> {
+  if (!(await shouldLogEvent(event.type))) {
+    return;
+  }
+
   const db = getDb();
   const eventDoc: SecurityEventDocument = {
     type: event.type,
@@ -166,4 +240,11 @@ export async function logCallableSecurityEvents(
       })
     )
   );
+}
+
+export async function assertCallableIpNotBlocked(request: CallableRequest<unknown>, fallbackPath: string) {
+  const context = getCallableRequestContext(request, fallbackPath);
+  if (await isIpBlocked(hashIp(context.ip))) {
+    throw new HttpsError("permission-denied", "Access denied.");
+  }
 }

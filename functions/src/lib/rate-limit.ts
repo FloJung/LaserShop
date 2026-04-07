@@ -15,7 +15,7 @@ function getHeaderValue(headers: Record<string, string | string[] | undefined>, 
   return typeof value === "string" ? value.trim() : "";
 }
 
-function getRequestIpAddress(request: CallableRequest<unknown>) {
+export function getRequestIpAddress(request: CallableRequest<unknown>) {
   const rawRequest = request.rawRequest as
     | {
         ip?: string;

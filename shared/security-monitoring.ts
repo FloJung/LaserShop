@@ -15,6 +15,11 @@ export type SecurityAlertType = (typeof SECURITY_ALERT_TYPES)[number];
 export type SecuritySeverity = "low" | "medium" | "high";
 export type SecurityAlertStatus = "open" | "resolved";
 
+export const SECURITY_EVENT_SAMPLE_RATES: Partial<Record<SecurityEventType, number>> = {
+  rate_limit_hit: 5,
+  upload_rejected: 3
+};
+
 export type SecurityEventInput = {
   type: SecurityEventType;
   ip: string;
@@ -65,6 +70,14 @@ export function getDefaultSecuritySeverity(type: SecurityEventType): SecuritySev
     default:
       return "medium";
   }
+}
+
+export function getSecurityEventSampleRate(type: SecurityEventType) {
+  return SECURITY_EVENT_SAMPLE_RATES[type] ?? 1;
+}
+
+export function getSecurityEventWeight(type: SecurityEventType) {
+  return getSecurityEventSampleRate(type);
 }
 
 function includesReason(reason: string, fragments: string[]) {
