@@ -1,6 +1,7 @@
-import { HttpsError } from "firebase-functions/v2/https";
+import { FieldValue } from "firebase-admin/firestore";
 import type { DocumentReference } from "firebase-admin/firestore";
 import {
+  CheckoutSecurityError,
   assertSvgUploadIsAllowed,
   linkUploadRequestSchema,
   orderStatusUpdateRequestSchema,
@@ -19,6 +20,9 @@ import type {
 } from "../../../shared/catalog";
 import { getBucket, getDb } from "./firebase";
 import { createLinkedUploadPath, createPendingUploadPath, createUploadId, nowIso, plusDaysIso } from "./utils";
+
+const UPLOAD_ALREADY_USED_ERROR_MESSAGE = "Upload has already been used.";
+const UPLOAD_LINK_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 function summarizeOrderCustomData(customData?: Record<string, unknown>) {
   if (!customData) {
@@ -72,6 +76,125 @@ async function reserveNextOrderNumber() {
   });
 }
 
+function assertUploadCanBeLinked(uploadDoc: UploadDocument, now: Date) {
+  if (uploadDoc.linkedOrderId) {
+    throw new CheckoutSecurityError("failed-precondition", UPLOAD_ALREADY_USED_ERROR_MESSAGE);
+  }
+
+  if (uploadDoc.reviewStatus !== "pending_upload") {
+    throw new CheckoutSecurityError("failed-precondition", `Upload ${uploadDoc.originalFilename} cannot be linked in its current state.`);
+  }
+
+  if (uploadDoc.lockedAt) {
+    const lockedAt = Date.parse(uploadDoc.lockedAt);
+    if (Number.isFinite(lockedAt) && now.getTime() - lockedAt < UPLOAD_LINK_LOCK_TIMEOUT_MS) {
+      throw new CheckoutSecurityError("failed-precondition", "Upload is currently being processed.");
+    }
+  }
+}
+
+async function acquireUploadLinkLock(input: {
+  uploadId: string;
+}) {
+  const uploadRef = getDb().collection("uploads").doc(input.uploadId);
+  const lockTimestamp = nowIso();
+  const now = new Date(lockTimestamp);
+
+  const uploadDoc = await getDb().runTransaction(async (transaction) => {
+    const uploadSnap = await transaction.get(uploadRef);
+    if (!uploadSnap.exists) {
+      throw new CheckoutSecurityError("invalid-argument", `Unknown upload ${input.uploadId}.`);
+    }
+
+    const parsedUploadDoc = uploadDocumentSchema.parse(uploadSnap.data());
+    assertUploadCanBeLinked(parsedUploadDoc, now);
+
+    transaction.set(
+      uploadRef,
+      {
+        lockedAt: lockTimestamp,
+        updatedAt: lockTimestamp
+      },
+      { merge: true }
+    );
+
+    return parsedUploadDoc;
+  });
+
+  return {
+    uploadDoc,
+    lockTimestamp
+  };
+}
+
+async function releaseUploadLinkLock(input: {
+  uploadId: string;
+  lockTimestamp: string;
+}) {
+  const uploadRef = getDb().collection("uploads").doc(input.uploadId);
+  await getDb().runTransaction(async (transaction) => {
+    const uploadSnap = await transaction.get(uploadRef);
+    if (!uploadSnap.exists) {
+      return;
+    }
+
+    const uploadDoc = uploadDocumentSchema.parse(uploadSnap.data());
+    if (uploadDoc.linkedOrderId || uploadDoc.lockedAt !== input.lockTimestamp) {
+      return;
+    }
+
+    transaction.set(
+      uploadRef,
+      {
+        lockedAt: FieldValue.delete(),
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+  });
+}
+
+async function finalizeUploadLink(input: {
+  uploadId: string;
+  orderId: string;
+  itemId: string;
+  optionId: string;
+  destinationPath: string;
+  lockTimestamp: string;
+}) {
+  const uploadRef = getDb().collection("uploads").doc(input.uploadId);
+  await getDb().runTransaction(async (transaction) => {
+    const uploadSnap = await transaction.get(uploadRef);
+    if (!uploadSnap.exists) {
+      throw new CheckoutSecurityError("invalid-argument", `Unknown upload ${input.uploadId}.`);
+    }
+
+    const uploadDoc = uploadDocumentSchema.parse(uploadSnap.data());
+    if (uploadDoc.linkedOrderId) {
+      throw new CheckoutSecurityError("failed-precondition", UPLOAD_ALREADY_USED_ERROR_MESSAGE);
+    }
+
+    if (uploadDoc.lockedAt !== input.lockTimestamp) {
+      throw new CheckoutSecurityError("failed-precondition", "Upload lock was lost before linking could finish.");
+    }
+
+    transaction.set(
+      uploadRef,
+      {
+        storagePath: input.destinationPath,
+        linkedOrderId: input.orderId,
+        linkedOrderItemId: input.itemId,
+        linkedOptionId: input.optionId,
+        reviewStatus: "linked",
+        allowGuestUpload: false,
+        lockedAt: FieldValue.delete(),
+        updatedAt: nowIso()
+      },
+      { merge: true }
+    );
+  });
+}
+
 export async function linkUploadToOrderItem(input: {
   uploadId: string;
   orderId: string;
@@ -79,42 +202,50 @@ export async function linkUploadToOrderItem(input: {
   optionId: string;
 }) {
   const request = linkUploadRequestSchema.parse(input);
-  const uploadRef = getDb().collection("uploads").doc(request.uploadId);
-  const uploadSnap = await uploadRef.get();
-  if (!uploadSnap.exists) {
-    throw new HttpsError("invalid-argument", `Unknown upload ${request.uploadId}.`);
-  }
-
-  const uploadDoc = uploadDocumentSchema.parse(uploadSnap.data());
-  await verifyReservedUploadIntegrity(uploadDoc, {
-    db: getDb(),
-    bucket: getBucket()
+  const { uploadDoc, lockTimestamp } = await acquireUploadLinkLock({
+    uploadId: request.uploadId
   });
 
-  const destinationPath = createLinkedUploadPath(
-    request.orderId,
-    request.itemId,
-    request.uploadId,
-    uploadDoc.originalFilename
-  );
+  try {
+    await verifyReservedUploadIntegrity(uploadDoc, {
+      db: getDb(),
+      bucket: getBucket()
+    });
 
-  const sourceFile = getBucket().file(uploadDoc.storagePath);
-  const destinationFile = getBucket().file(destinationPath);
-  await sourceFile.copy(destinationFile);
-  await sourceFile.delete({ ignoreNotFound: true });
+    const destinationPath = createLinkedUploadPath(
+      request.orderId,
+      request.itemId,
+      request.uploadId,
+      uploadDoc.originalFilename
+    );
 
-  await uploadRef.set(
-    {
-      storagePath: destinationPath,
-      linkedOrderId: request.orderId,
-      linkedOrderItemId: request.itemId,
-      linkedOptionId: request.optionId,
-      reviewStatus: "linked",
-      allowGuestUpload: false,
-      updatedAt: nowIso()
-    },
-    { merge: true }
-  );
+    const sourceFile = getBucket().file(uploadDoc.storagePath);
+    const destinationFile = getBucket().file(destinationPath);
+
+    await sourceFile.copy(destinationFile);
+
+    try {
+      await finalizeUploadLink({
+        uploadId: request.uploadId,
+        orderId: request.orderId,
+        itemId: request.itemId,
+        optionId: request.optionId,
+        destinationPath,
+        lockTimestamp
+      });
+    } catch (error) {
+      await destinationFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+      throw error;
+    }
+
+    await sourceFile.delete({ ignoreNotFound: true }).catch(() => undefined);
+  } catch (error) {
+    await releaseUploadLinkLock({
+      uploadId: request.uploadId,
+      lockTimestamp
+    }).catch(() => undefined);
+    throw error;
+  }
 }
 
 async function writeOrderItem(orderRef: DocumentReference, line: ValidatedCartLine, createdAt: string) {

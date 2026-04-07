@@ -299,6 +299,7 @@ export type UploadDocument = {
   originalFilename: string;
   mimeType: string;
   fileSize: number;
+  lockedAt?: TimestampLike;
   linkedOrderId?: string;
   linkedOrderItemId?: string;
   linkedOptionId?: string;

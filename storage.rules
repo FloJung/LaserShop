@@ -31,6 +31,7 @@ service firebase.storage {
         request.resource.contentType != "image/svg+xml" &&
         request.resource.contentType == uploadDoc(uploadId).mimeType &&
         uploadDoc(uploadId).mimeType != "image/svg+xml" &&
+        uploadDoc(uploadId).lockedAt == null &&
         uploadDoc(uploadId).storagePath == reservedPendingUploadPath(uploadId, fileName) &&
         uploadDoc(uploadId).reviewStatus == "pending_upload" &&
         uploadDoc(uploadId).linkedOrderId == null &&

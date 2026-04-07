@@ -11,12 +11,13 @@ import {
   assertOrderTransition,
   assertPaymentTransition,
   assertProductionTransition,
+  REGION,
   getRequestUserRole,
   nowIso,
   requireAdmin,
-  REGION,
   toCallableError
 } from "./lib/utils";
+import { assertCallableRateLimit } from "./lib/rate-limit";
 
 export const validateCart = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
@@ -51,6 +52,12 @@ export const createOrderFromCart = onCall({ region: REGION }, async (request: Ca
 
 export const createUploadReservation = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
+    await assertCallableRateLimit(request, {
+      namespace: "upload-reservation",
+      limit: 10,
+      windowMs: 60_000
+    });
+
     const role = getRequestUserRole(request);
     const { uploadId, uploadDoc } = createUploadReservationDocument({
       ...(request.data as {

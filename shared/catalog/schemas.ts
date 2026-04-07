@@ -241,6 +241,7 @@ export const uploadDocumentSchema = z.object({
   originalFilename: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(120),
   fileSize: z.number().int().positive(),
+  lockedAt: z.string().optional(),
   linkedOrderId: z.string().trim().max(120).optional(),
   linkedOrderItemId: z.string().trim().max(120).optional(),
   linkedOptionId: z.string().trim().max(120).optional(),

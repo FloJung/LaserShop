@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { RateLimitExceededError, assertInMemoryRateLimit } from "@/lib/server/rate-limit";
 import { createCartCheckoutSession } from "@/lib/server/shopify";
 import { CheckoutSecurityError } from "@/shared/catalog";
 
@@ -20,6 +21,20 @@ function normalizeQuantity(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  try {
+    assertInMemoryRateLimit(request, {
+      namespace: "checkout:create-cart",
+      limit: 5,
+      windowMs: 60_000
+    });
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    throw error;
+  }
+
   let body: CreateCartCheckoutRequest;
   try {
     body = (await request.json()) as CreateCartCheckoutRequest;
