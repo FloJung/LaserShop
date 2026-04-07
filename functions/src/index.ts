@@ -2,6 +2,7 @@ import { logger } from "firebase-functions";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { getAdminAuth, getBucket, getDb } from "./lib/firebase";
 import { validateCheckoutPayload } from "../../shared/catalog";
+import { getCheckoutSecurityEvents, getDefaultSecuritySeverity, getDerivedSecurityEventsForReason } from "../../shared/security-monitoring";
 import {
   createOrderFromValidatedCheckout,
   createUploadReservationDocument,
@@ -18,6 +19,7 @@ import {
   toCallableError
 } from "./lib/utils";
 import { assertCallableRateLimit } from "./lib/rate-limit";
+import { logCallableSecurityEvents } from "./lib/security-monitoring";
 
 export const validateCart = onCall({ region: REGION }, async (request: CallableRequest<unknown>) => {
   try {
@@ -33,6 +35,11 @@ export const validateCart = onCall({ region: REGION }, async (request: CallableR
     };
   } catch (error) {
     logger.error("validateCart failed", error);
+    if (error instanceof Error && error.name === "CheckoutSecurityError") {
+      await logCallableSecurityEvents(request, getCheckoutSecurityEvents(error.message), "functions.validateCart").catch((loggingError) => {
+        logger.error("validateCart security logging failed", loggingError);
+      });
+    }
     throw toCallableError(error, "validateCart failed.");
   }
 });
@@ -46,6 +53,11 @@ export const createOrderFromCart = onCall({ region: REGION }, async (request: Ca
     return await createOrderFromValidatedCheckout(validatedCheckout, request.auth?.uid);
   } catch (error) {
     logger.error("createOrderFromCart failed", error);
+    if (error instanceof Error && error.name === "CheckoutSecurityError") {
+      await logCallableSecurityEvents(request, getCheckoutSecurityEvents(error.message), "functions.createOrderFromCart").catch((loggingError) => {
+        logger.error("createOrderFromCart security logging failed", loggingError);
+      });
+    }
     throw toCallableError(error, "createOrderFromCart failed.");
   }
 });
@@ -77,6 +89,28 @@ export const createUploadReservation = onCall({ region: REGION }, async (request
     };
   } catch (error) {
     logger.error("createUploadReservation failed", error);
+    if (error instanceof HttpsError && error.code === "resource-exhausted") {
+      await logCallableSecurityEvents(
+        request,
+        [
+          {
+            type: "rate_limit_hit",
+            severity: getDefaultSecuritySeverity("rate_limit_hit"),
+            reason: error.message
+          }
+        ],
+        "functions.createUploadReservation"
+      ).catch((loggingError) => {
+        logger.error("createUploadReservation rate limit logging failed", loggingError);
+      });
+    } else if (error instanceof Error) {
+      const derivedEvents = getDerivedSecurityEventsForReason(error.message);
+      if (derivedEvents.length > 0) {
+        await logCallableSecurityEvents(request, derivedEvents, "functions.createUploadReservation").catch((loggingError) => {
+          logger.error("createUploadReservation security logging failed", loggingError);
+        });
+      }
+    }
     throw toCallableError(error, "createUploadReservation failed.");
   }
 });

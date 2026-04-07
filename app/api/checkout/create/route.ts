@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { RateLimitExceededError, assertInMemoryRateLimit } from "@/lib/server/rate-limit";
+import { logRequestSecurityEvents } from "@/lib/server/security-monitoring";
 import { createCheckoutSession } from "@/lib/server/shopify";
 import { CheckoutSecurityError } from "@/shared/catalog";
+import { getCheckoutSecurityEvents, getDefaultSecuritySeverity } from "@/shared/security-monitoring";
 
 type CreateCheckoutRequest = {
   lineId?: string;
@@ -27,6 +29,15 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
+      await logRequestSecurityEvents(request, [
+        {
+          type: "rate_limit_hit",
+          severity: getDefaultSecuritySeverity("rate_limit_hit"),
+          reason: error.message
+        }
+      ]).catch((loggingError) => {
+        console.error("[security] failed to log rate limit hit", loggingError);
+      });
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
@@ -61,6 +72,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ checkoutUrl });
   } catch (error) {
     console.error("[shopify] checkout creation failed:", error);
+    if (error instanceof CheckoutSecurityError) {
+      await logRequestSecurityEvents(request, getCheckoutSecurityEvents(error.message)).catch((loggingError) => {
+        console.error("[security] failed to log checkout security error", loggingError);
+      });
+    }
     const status = error instanceof CheckoutSecurityError || error instanceof ZodError ? 400 : 500;
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Checkout creation failed." },

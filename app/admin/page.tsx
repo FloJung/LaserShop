@@ -52,6 +52,12 @@ export default async function AdminPage() {
           >
             Bestellungen ansehen
           </Link>
+          <Link
+            href="/admin/security"
+            className="inline-flex items-center justify-center rounded-full border border-[var(--line)] px-5 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--brand)] hover:text-[var(--brand)]"
+          >
+            Security Monitoring
+          </Link>
           <AdminSignOutButton />
         </div>
       </div>
