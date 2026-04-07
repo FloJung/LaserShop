@@ -92,18 +92,21 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
 
   await Promise.all(
     relevantRules.map(async ([alertType, rule]) => {
-      const thresholdDate = Timestamp.fromMillis(event.createdAt.toMillis() - rule.windowMs);
       const recentEventsSnap = await db
         .collection(SECURITY_EVENT_COLLECTION)
-        .where("ipHash", "==", event.ipHash)
-        .where("createdAt", ">=", thresholdDate)
         .orderBy("createdAt", "desc")
-        .limit(100)
+        .limit(500)
         .get();
 
+      const thresholdMillis = event.createdAt.toMillis() - rule.windowMs;
       const matchingEvents = recentEventsSnap.docs
         .map((doc) => doc.data() as SecurityEventDocument)
-        .filter((candidate) => rule.eventTypes.includes(candidate.type));
+        .filter(
+          (candidate) =>
+            candidate.ipHash === event.ipHash &&
+            candidate.createdAt.toMillis() >= thresholdMillis &&
+            rule.eventTypes.includes(candidate.type)
+        );
 
       if (matchingEvents.length <= rule.threshold) {
         return;

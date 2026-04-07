@@ -91,18 +91,21 @@ export async function detectSecurityIncidents(event: SecurityEventDocument): Pro
 
   await Promise.all(
     relevantRules.map(async ([alertType, rule]) => {
-      const thresholdDate = Timestamp.fromMillis(event.createdAt.toMillis() - rule.windowMs);
       const recentEventsSnap = await db
         .collection(SECURITY_EVENT_COLLECTION)
-        .where("ipHash", "==", event.ipHash)
-        .where("createdAt", ">=", thresholdDate)
         .orderBy("createdAt", "desc")
-        .limit(100)
+        .limit(500)
         .get();
 
+      const thresholdMillis = event.createdAt.toMillis() - rule.windowMs;
       const matchingEvents = recentEventsSnap.docs
         .map((doc) => doc.data() as SecurityEventDocument)
-        .filter((candidate) => rule.eventTypes.includes(candidate.type));
+        .filter(
+          (candidate) =>
+            candidate.ipHash === event.ipHash &&
+            candidate.createdAt.toMillis() >= thresholdMillis &&
+            rule.eventTypes.includes(candidate.type)
+        );
 
       if (matchingEvents.length <= rule.threshold) {
         return;
@@ -185,7 +188,7 @@ function formatTimestamp(value: Timestamp) {
 export async function getAdminSecurityDashboardData(): Promise<AdminSecurityDashboardData> {
   const db = getAdminDb();
   const [alertsSnap, eventsSnap] = await Promise.all([
-    db.collection(SECURITY_ALERT_COLLECTION).where("status", "==", "open").orderBy("lastSeenAt", "desc").limit(50).get(),
+    db.collection(SECURITY_ALERT_COLLECTION).where("status", "==", "open").get(),
     db.collection(SECURITY_EVENT_COLLECTION).orderBy("createdAt", "desc").limit(500).get()
   ]);
 
@@ -230,10 +233,13 @@ export async function getAdminSecurityDashboardData(): Promise<AdminSecurityDash
     .sort((left, right) => right.eventCount - left.eventCount)
     .slice(0, 10);
 
-  const alerts = alertsSnap.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as SecurityAlertDocument)
-  }));
+  const alerts = alertsSnap.docs
+    .map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as SecurityAlertDocument)
+    }))
+    .sort((left, right) => right.lastSeenAt.toMillis() - left.lastSeenAt.toMillis())
+    .slice(0, 50);
 
   return {
     alerts,
